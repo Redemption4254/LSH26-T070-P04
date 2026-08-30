@@ -178,7 +178,7 @@
       </div>
 
       <div class="wn-scroll" id="wn-scroll">
-        <article class="wn-card wn-card-a">
+        <article class="wn-card wn-card-a" data-feature="routes">
           <div class="wn-thumb wn-thumb-bus"></div>
           <div class="wn-text">
             <h4>Dive into Bus Routes</h4>
@@ -188,7 +188,7 @@
             </button>
           </div>
         </article>
-        <article class="wn-card wn-card-b">
+        <article class="wn-card wn-card-b" data-feature="newRoutes">
           <div class="wn-thumb wn-thumb-city"></div>
           <div class="wn-text">
             <h4>New Routes Added</h4>
@@ -198,7 +198,7 @@
             </button>
           </div>
         </article>
-        <article class="wn-card wn-card-c">
+        <article class="wn-card wn-card-c" data-feature="night">
           <div class="wn-thumb wn-thumb-night"></div>
           <div class="wn-text">
             <h4>Night Rides</h4>
@@ -403,6 +403,171 @@
   </div>
 
   <div id="toast" class="toast hidden" role="status" aria-live="polite"></div>
+
+  <!-- ===================== Side panels / modals ===================== -->
+  <!-- Profile drawer (clicking the avatar opens this) -->
+  <div id="profile-modal" class="modal hidden" role="dialog" aria-modal="true" aria-labelledby="profile-title">
+    <div class="modal-card profile-card">
+      <button class="modal-close" data-close="profile-modal" aria-label="Close">&times;</button>
+      <div class="profile-avatar" id="profile-avatar">F</div>
+      <h3 id="profile-title">Your profile</h3>
+      <p class="muted small">Saved on this device only.</p>
+
+      <form id="profile-form" class="profile-form" autocomplete="off">
+        <label class="field">
+          <span>Display name</span>
+          <input type="text" id="profile-name" maxlength="32" placeholder="e.g. Farhan" required />
+        </label>
+        <label class="field">
+          <span>Email (optional)</span>
+          <input type="email" id="profile-email" maxlength="64" placeholder="you@example.com" />
+        </label>
+        <label class="field">
+          <span>Phone (optional)</span>
+          <input type="tel" id="profile-phone" maxlength="20" placeholder="+880 ..." />
+        </label>
+        <label class="field">
+          <span>Default home stop</span>
+          <input type="text" id="profile-home" maxlength="40" placeholder="e.g. Farmgate" />
+        </label>
+        <button type="submit" class="btn primary block">Save profile</button>
+        <button type="button" id="profile-signout" class="btn ghost block">Sign out (clear local data)</button>
+      </form>
+
+      <div class="profile-stats">
+        <div><strong id="profile-trip-count">0</strong><span>Trips saved</span></div>
+        <div><strong id="profile-share-count">0</strong><span>Trips shared</span></div>
+        <div><strong id="profile-rider-count">0</strong><span>Riders tracked</span></div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Notifications drawer -->
+  <div id="notif-modal" class="modal hidden" role="dialog" aria-modal="true" aria-labelledby="notif-title">
+    <div class="modal-card notif-card">
+      <button class="modal-close" data-close="notif-modal" aria-label="Close">&times;</button>
+      <h3 id="notif-title">Notifications</h3>
+      <div class="notif-tabs">
+        <button class="notif-tab active" data-notif-tab="all">All</button>
+        <button class="notif-tab" data-notif-tab="unread">Unread <span id="notif-unread-badge" class="badge-dot inline">0</span></button>
+        <button class="notif-tab" data-notif-tab="trips">Trips</button>
+      </div>
+      <ul id="notif-list" class="notif-list"></ul>
+      <div class="notif-actions">
+        <button class="btn ghost" id="notif-clear">Clear all</button>
+        <button class="btn primary" id="notif-mark-read">Mark all read</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Settings drawer -->
+  <div id="settings-modal" class="modal hidden" role="dialog" aria-modal="true" aria-labelledby="settings-title">
+    <div class="modal-card settings-card">
+      <button class="modal-close" data-close="settings-modal" aria-label="Close">&times;</button>
+      <h3 id="settings-title">Settings</h3>
+
+      <label class="field">
+        <span>Currency</span>
+        <select id="set-currency">
+          <option value="৳">৳ · Bangladeshi Taka</option>
+          <option value="₹">₹ · Indian Rupee</option>
+          <option value="$">$ · US Dollar</option>
+          <option value="€">€ · Euro</option>
+          <option value="£">£ · British Pound</option>
+          <option value="¥">¥ · Yen / Yuan</option>
+        </select>
+      </label>
+
+      <label class="field">
+        <span>Default fare</span>
+        <input type="number" id="set-default-fare" min="0" max="9999" step="1" />
+      </label>
+
+      <label class="field">
+        <span>Theme</span>
+        <select id="set-theme">
+          <option value="dark">Dark</option>
+          <option value="light">Light</option>
+          <option value="system">System (auto)</option>
+        </select>
+      </label>
+
+      <div class="settings-row">
+        <label class="toggle-row">
+          <input type="checkbox" id="set-night-mode" />
+          <span>Night rides only</span>
+        </label>
+        <label class="toggle-row">
+          <input type="checkbox" id="set-sound" />
+          <span>Sound on save</span>
+        </label>
+      </div>
+
+      <div class="settings-divider"></div>
+
+      <button class="btn ghost block" id="set-export">Export trips (JSON)</button>
+      <button class="btn ghost block" id="set-import-trigger">Import trips…</button>
+      <input type="file" id="set-import-file" accept="application/json" hidden />
+      <button class="btn danger block" id="set-wipe">Delete everything</button>
+
+      <p class="muted small settings-foot">v2.1 · PWA · works offline</p>
+    </div>
+  </div>
+
+  <!-- City picker (location pin) -->
+  <div id="city-modal" class="modal hidden" role="dialog" aria-modal="true" aria-labelledby="city-title">
+    <div class="modal-card city-card">
+      <button class="modal-close" data-close="city-modal" aria-label="Close">&times;</button>
+      <h3 id="city-title">Where are you riding?</h3>
+      <p class="muted small">Picks the city shown on the home pill and the default fare.</p>
+      <div class="city-search">
+        <input type="search" id="city-input" placeholder="Search a city…" />
+      </div>
+      <ul id="city-list" class="city-list"></ul>
+      <button class="btn ghost block" id="city-geolocate">
+        <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><path d="M12 3v3M12 18v3M3 12h3M18 12h3"/></svg>
+        Use my current location
+      </button>
+    </div>
+  </div>
+
+  <!-- Route preview (map icon) -->
+  <div id="route-modal" class="modal hidden" role="dialog" aria-modal="true" aria-labelledby="route-title">
+    <div class="modal-card route-card">
+      <button class="modal-close" data-close="route-modal" aria-label="Close">&times;</button>
+      <h3 id="route-title">Route preview</h3>
+      <p class="muted small" id="route-summary">Add stops to see the route map.</p>
+      <div class="route-canvas-wrap">
+        <svg id="route-svg" viewBox="0 0 320 240" preserveAspectRatio="xMidYMid meet" aria-hidden="true"></svg>
+      </div>
+      <ol id="route-stop-list" class="route-stop-list"></ol>
+      <div class="route-actions">
+        <button class="btn ghost" id="route-print">Print</button>
+        <button class="btn primary" id="route-share">Share this trip</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- QR Scan modal (camera button) -->
+  <div id="scan-modal" class="modal hidden" role="dialog" aria-modal="true" aria-labelledby="scan-title">
+    <div class="modal-card scan-card">
+      <button class="modal-close" data-close="scan-modal" aria-label="Close">&times;</button>
+      <h3 id="scan-title">Open a shared trip</h3>
+      <p class="muted small">Point your camera at a trip QR — or paste a link below.</p>
+      <div class="scan-frame" aria-hidden="true">
+        <div class="scan-corners"></div>
+        <p class="scan-hint">Camera scanning is in a demo build. Paste a link to load a trip.</p>
+      </div>
+      <label class="field">
+        <span>Shared link</span>
+        <input type="url" id="scan-link" placeholder="https://…?t=…" />
+      </label>
+      <div class="scan-actions">
+        <button class="btn ghost" id="scan-paste">Paste from clipboard</button>
+        <button class="btn primary" id="scan-go">Load trip</button>
+      </div>
+    </div>
+  </div>
 
   <script src="https://cdn.jsdelivr.net/npm/qrcode-generator@1.4.4/qrcode.min.js"></script>
   <script src="app.js"></script>

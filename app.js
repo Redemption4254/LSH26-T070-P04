@@ -21,7 +21,18 @@ const state = {
   tripId: null,
   shareUrl: null,
   history: [],
-  view: 'split'
+  view: 'split',
+  city: 'Las Vegas, USA',
+  // Settings (persisted via localStorage)
+  currency: '\u09F3',
+  defaultFare: 120,
+  nightMode: false,
+  soundOn: false,
+  // Profile (persisted)
+  profile: { name: '', email: '', phone: '', home: '' },
+  // Notifications
+  notifications: [],
+  shareCount: 0
 };
 
 let nextId = 1;
@@ -38,9 +49,10 @@ function clampStr(v, max) {
 }
 
 function fmtMoney(n) {
-  // Locale-aware, 2 decimal places, never shows "-0". Currency: Bangladeshi Taka (৳).
+  // Locale-aware, 2 decimal places, never shows "-0". Currency comes from settings.
   const v = (Math.round(n * 100) / 100);
-  return `\u09F3 ${v.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+  const cur = (state && state.currency) ? state.currency : '\u09F3';
+  return `${cur} ${v.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
 }
 
 const announcement = (() => {
@@ -63,7 +75,14 @@ const announcement = (() => {
 // ---------- Init ----------
 async function init() {
   loadTheme();
+  loadSettings();
+  loadProfile();
   loadHistory();
+  loadNotifications();
+  renderProfileAvatar();
+  updateNotifBadge();
+  // Reflect saved city in the location pill if there's a labeled slot.
+  if (state.city) updateLocCity(state.city);
   renderAll();
   wireEvents();
   pingBackend();
@@ -328,9 +347,8 @@ function wireEvents() {
   bind('passenger-name', 'keydown', (e) => { if (e.key === 'Enter') { e.preventDefault(); try { addPassenger(); } catch (e) { _showErr(e.message); } } });
   bind('passenger-name', 'input', (e) => { e.target.value = e.target.value.slice(0, LIMITS.MAX_NAME_LEN); });
 
-  bind('theme-toggle', 'click', toggleTheme);
-  bind('menu-btn', 'click', () => { try { openMenuSheet(); } catch (e) { _showErr(e.message); } });
-  bind('cam-btn', 'click', () => { try { openMenuSheet(); } catch (e) { _showErr(e.message); } });
+  bind('menu-btn', 'click', () => { try { openRichMenu(); } catch (e) { _showErr(e.message); } });
+  bind('cam-btn', 'click', () => { try { openScanModal(); } catch (e) { _showErr(e.message); } });
 
   // Category tabs open the quick-config sheet for that step
   document.querySelectorAll('.cat-tab').forEach((tab) => {
@@ -375,8 +393,9 @@ function wireEvents() {
   // Summary pane Share button
   bind('sum-share', 'click', () => { shareTrip(); });
 
-  // Bell + inactive round-icons → small toasts so they feel alive.
-  bind('bell-btn', 'click', () => toast('No new notifications'));
+  // Bell handler is wired below in the new feature block — keep this line
+  // as a no-op fallback in case the new wiring fails to run.
+  bind('bell-btn', 'click', () => { /* openNotifications is wired below */ });
   // Triple-chevron "next" pill jumps to the next step sheet.
   bind('ghost-next', 'click', () => {
     const order = ['route', 'passengers', 'results'];
@@ -392,18 +411,122 @@ function wireEvents() {
   });
   // The "+" buttons on the history / about headers open the demo flow.
   document.querySelectorAll('.bk-header .round-icon:not([data-view])').forEach((b) => {
+    const label = (b.getAttribute('aria-label') || '').toLowerCase();
     b.addEventListener('click', () => {
-      if (state.view === 'history') { toast('Open a saved trip from the list below'); return; }
-      if (state.view === 'about')   { loadDemoTrip(); return; }
+      if (label.includes('notif')) { openNotifications(); return; }
+      if (label.includes('add'))   { loadDemoTrip(); switchView('split'); toast('Demo trip loaded'); return; }
+      if (label.includes('setting')){ openSettings(); return; }
       toast('Tap a stop or rider to get started');
     });
   });
-  // Map pin on the location pill: pretend we picked up a city.
-  document.querySelector('.loc-pin')?.addEventListener('click', () => {
-    const cities = ['Dhaka, BD', 'Chittagong, BD', 'Sylhet, BD', 'Khulna, BD'];
-    const cur = $('loc-city');
-    if (cur) cur.textContent = cities[Math.floor(Math.random() * cities.length)];
-    toast('Location updated · routes refresh');
+  // Map pin on the location pill opens the real city picker.
+  document.querySelector('.loc-pin')?.addEventListener('click', openCityPicker);
+  // The "Map" ghost pill on the featured card opens the route preview.
+  document.querySelectorAll('.ghost-pill').forEach((b) => {
+    if ((b.getAttribute('aria-label') || '').toLowerCase().includes('map')) {
+      b.addEventListener('click', openRoutePreview);
+    }
+  });
+  // Scanner (camera button) opens the scan-trip flow.
+  document.getElementById('cam-btn')?.addEventListener('click', openScanModal);
+
+  // Avatar (top right) opens the profile; keep theme toggle as a small click-zone inside it.
+  const avatar = document.getElementById('theme-toggle');
+  if (avatar) {
+    avatar.addEventListener('click', (e) => {
+      // Shift-click toggles theme (hidden feature), plain click opens profile.
+      if (e.shiftKey) { toggleTheme(); return; }
+      openProfile();
+    });
+  }
+  // Bell opens the notifications panel.
+  bind('bell-btn', 'click', openNotifications);
+
+  // Wire every "View" button inside the What's-new cards.
+  document.querySelectorAll('.wn-card').forEach((card, i) => {
+    const btn = card.querySelector('.wn-view');
+    if (!btn) return;
+    btn.addEventListener('click', () => openWhatsNew(card.dataset.feature || ['routes','newRoutes','night'][i] || 'routes'));
+    // Whole card is also clickable
+    card.style.cursor = 'pointer';
+    card.addEventListener('click', (e) => {
+      if (e.target.closest('.wn-view')) return;
+      openWhatsNew(card.dataset.feature || ['routes','newRoutes','night'][i] || 'routes');
+    });
+  });
+
+  // Bookings tabs (3 Deals / Details / Reviews).
+  document.querySelectorAll('.bk-tab').forEach((tab) => {
+    tab.addEventListener('click', () => {
+      try {
+        document.querySelectorAll('.bk-tab').forEach((t) => t.classList.remove('active'));
+        tab.classList.add('active');
+        renderBookingsTab(tab.textContent.trim());
+      } catch (e) { _showErr(e.message); }
+    });
+  });
+  // Book Now → confirm + share trip.
+  bind('bk-booknow', 'click', () => { try { bookNow(); } catch (e) { _showErr(e.message); } });
+
+  // Generic modal close — every [data-close="<id>"] button.
+  document.querySelectorAll('[data-close]').forEach((btn) => {
+    btn.addEventListener('click', () => closeModal(btn.dataset.close));
+  });
+  // Click on backdrop closes any open modal.
+  document.querySelectorAll('.modal').forEach((m) => {
+    m.addEventListener('click', (e) => { if (e.target === m) closeModal(m.id); });
+  });
+
+  // ====== Profile modal wiring ======
+  bind('profile-form', 'submit', (e) => {
+    e.preventDefault();
+    try { saveProfile(); } catch (err) { _showErr(err.message); }
+  });
+  bind('profile-signout', 'click', () => { wipeAllData(); closeModal('profile-modal'); });
+
+  // ====== Notifications modal wiring ======
+  document.querySelectorAll('.notif-tab').forEach((tab) => {
+    tab.addEventListener('click', () => {
+      document.querySelectorAll('.notif-tab').forEach((t) => t.classList.remove('active'));
+      tab.classList.add('active');
+      renderNotifications(tab.dataset.notifTab);
+    });
+  });
+  bind('notif-clear', 'click', () => { clearNotifications(); renderNotifications(); });
+  bind('notif-mark-read', 'click', () => { markAllRead(); renderNotifications(); });
+
+  // ====== Settings modal wiring ======
+  bind('set-currency', 'change', (e) => { state.currency = e.target.value; persistSettings(); renderAll(); toast('Currency updated to ' + e.target.value); });
+  bind('set-default-fare', 'change', (e) => { state.defaultFare = parseFloat(e.target.value) || 0; persistSettings(); });
+  bind('set-theme', 'change', (e) => { applyTheme(e.target.value); persistSettings(); });
+  bind('set-night-mode', 'change', (e) => { state.nightMode = e.target.checked; persistSettings(); document.body.classList.toggle('night', state.nightMode); });
+  bind('set-sound', 'change', (e) => { state.soundOn = e.target.checked; persistSettings(); });
+  bind('set-export', 'click', exportData);
+  bind('set-import-trigger', 'click', () => document.getElementById('set-import-file').click());
+  bind('set-import-file', 'change', importData);
+  bind('set-wipe', 'click', wipeAllData);
+
+  // ====== City picker wiring ======
+  bind('city-input', 'input', (e) => renderCityList(e.target.value));
+  bind('city-geolocate', 'click', geolocateCity);
+
+  // ====== Route preview wiring ======
+  bind('route-print', 'click', () => window.print());
+  bind('route-share', 'click', () => { closeModal('route-modal'); shareTrip(); });
+
+  // ====== Scan modal wiring ======
+  bind('scan-paste', 'click', async () => {
+    try {
+      const txt = await navigator.clipboard.readText();
+      $('scan-link').value = txt;
+      toast('Link pasted');
+    } catch { toast('Clipboard blocked — paste manually'); }
+  });
+  bind('scan-go', 'click', () => {
+    const url = $('scan-link').value.trim();
+    if (!url) { toast('Paste a shared link first'); return; }
+    closeModal('scan-modal');
+    loadSharedTrip(url);
   });
 
   // Scroll-reveal observer
@@ -911,6 +1034,11 @@ async function shareTrip() {
   btn.disabled = false;
   btn.textContent = usedLocal ? '✓ Saved locally' : '✓ Saved & shared';
 
+  // Track + notify
+  state.shareCount = (state.shareCount || 0) + 1;
+  notifyAdd('Trip shared · ' + state.passengers.length + ' riders', 'trips');
+  renderProfileAvatar();
+
   // Auto-open QR for the wow moment
   showQR();
 
@@ -953,6 +1081,7 @@ function loadLocalSharedTrip(b64) {
 
 function applyTrip(trip) {
   if (!trip || !Array.isArray(trip.stops) || trip.stops.length < 2) return;
+  notifyAdd('Trip loaded · ' + trip.passengers.length + ' riders', 'trips');
   state.stops = trip.stops.slice(0, LIMITS.MAX_STOPS);
   state.totalFare = Number(trip.totalFare) || state.totalFare;
   state.passengers = (trip.passengers || []).slice(0, LIMITS.MAX_PASSENGERS).map((p) => ({
@@ -1153,6 +1282,660 @@ function toast(msg) {
   t.classList.remove('hidden');
   clearTimeout(toastTimer);
   toastTimer = setTimeout(() => t.classList.add('hidden'), 2400);
+}
+
+// ============================================================
+// Feature implementations — every hollow button gets a real
+// destination. Modal helpers, profile, notifications, settings,
+// city picker, route preview, scanner, what\'s-new, bookings
+// tabs, menu sheet, plus data export/import/wipe.
+// ============================================================
+
+// ---------- Modal helpers ----------
+function openModal(id) {
+  const m = document.getElementById(id);
+  if (!m) return;
+  m.classList.remove('hidden');
+  document.body.style.overflow = 'hidden';
+  // Focus first focusable for accessibility
+  const focusable = m.querySelector('input, select, textarea, button');
+  if (focusable) setTimeout(() => focusable.focus(), 60);
+}
+function closeModal(id) {
+  const m = document.getElementById(id);
+  if (!m) return;
+  m.classList.add('hidden');
+  document.body.style.overflow = '';
+}
+
+// ---------- Settings persistence ----------
+function persistSettings() {
+  try {
+    localStorage.setItem('faresplit-settings', JSON.stringify({
+      currency: state.currency, defaultFare: state.defaultFare,
+      nightMode: state.nightMode, soundOn: state.soundOn,
+      theme: (document.body.classList.contains('light') ? 'light' : 'dark'),
+      city: state.city
+    }));
+  } catch (_) {}
+}
+function loadSettings() {
+  try {
+    const s = JSON.parse(localStorage.getItem('faresplit-settings') || 'null');
+    if (!s) return;
+    if (s.currency) state.currency = s.currency;
+    if (Number.isFinite(s.defaultFare)) state.defaultFare = s.defaultFare;
+    if (typeof s.nightMode === 'boolean') state.nightMode = s.nightMode;
+    if (typeof s.soundOn === 'boolean') state.soundOn = s.soundOn;
+    if (s.city) state.city = s.city;
+    if (s.theme) applyTheme(s.theme);
+  } catch (_) {}
+  document.body.classList.toggle('night', !!state.nightMode);
+}
+
+// ---------- Profile ----------
+function loadProfile() {
+  try {
+    const p = JSON.parse(localStorage.getItem('faresplit-profile') || 'null');
+    if (p && typeof p === 'object') state.profile = Object.assign(state.profile, p);
+  } catch (_) {}
+}
+function saveProfile() {
+  state.profile.name = clampStr($('profile-name').value, 32);
+  state.profile.email = clampStr($('profile-email').value, 64);
+  state.profile.phone = clampStr($('profile-phone').value, 20);
+  state.profile.home = clampStr($('profile-home').value, 40);
+  try { localStorage.setItem('faresplit-profile', JSON.stringify(state.profile)); } catch (_) {}
+  renderProfileAvatar();
+  notifyAdd('Profile saved', 'profile');
+  toast('Profile saved');
+}
+function renderProfileAvatar() {
+  const av = $('profile-avatar');
+  const top = $('theme-toggle');
+  const init = (state.profile.name || 'F').trim().slice(0, 1).toUpperCase() || 'F';
+  if (av) av.textContent = init;
+  if (top) {
+    top.textContent = init;
+    top.setAttribute('aria-label', 'Open profile');
+  }
+  // Stats
+  const tc = $('profile-trip-count'); if (tc) tc.textContent = String(state.history.length);
+  const sc = $('profile-share-count'); if (sc) sc.textContent = String(state.shareCount || 0);
+  let riders = 0;
+  state.history.forEach((h) => { riders += (h.trip && h.trip.passengers) ? h.trip.passengers.length : 0; });
+  riders += state.passengers.length;
+  const rc = $('profile-rider-count'); if (rc) rc.textContent = String(riders);
+}
+function openProfile() {
+  $('profile-name').value = state.profile.name || '';
+  $('profile-email').value = state.profile.email || '';
+  $('profile-phone').value = state.profile.phone || '';
+  $('profile-home').value = state.profile.home || '';
+  renderProfileAvatar();
+  openModal('profile-modal');
+}
+
+// ---------- Notifications ----------
+const SEED_NOTIFS = () => ([
+  { id: 'n-welcome', ts: Date.now() - 1000 * 60 * 60 * 2, type: 'trips', title: 'Welcome to FareSplit', body: 'Add stops, then riders — we\'ll do the math.', read: false },
+  { id: 'n-tip',    ts: Date.now() - 1000 * 60 * 90,      type: 'trips', title: 'Tip: Save & share your trip',   body: 'Tap the share button to get a link anyone can open.', read: false }
+]);
+function loadNotifications() {
+  try {
+    const raw = JSON.parse(localStorage.getItem('faresplit-notifs') || 'null');
+    state.notifications = Array.isArray(raw) && raw.length ? raw : SEED_NOTIFS();
+    if (!raw) try { localStorage.setItem('faresplit-notifs', JSON.stringify(state.notifications)); } catch (_) {}
+  } catch (_) { state.notifications = SEED_NOTIFS(); }
+}
+function persistNotifications() {
+  try { localStorage.setItem('faresplit-notifs', JSON.stringify(state.notifications.slice(0, 40))); } catch (_) {}
+}
+function notifyAdd(title, type) {
+  state.notifications.unshift({ id: 'n-' + Date.now(), ts: Date.now(), type: type || 'trips', title, body: '', read: false });
+  state.notifications = state.notifications.slice(0, 40);
+  persistNotifications();
+  updateNotifBadge();
+}
+function updateNotifBadge() {
+  const badge = $('notif-unread-badge');
+  if (!badge) return;
+  const n = state.notifications.filter((x) => !x.read).length;
+  badge.textContent = String(n);
+  // Also reflect on the bell
+  const bell = $('bell-btn');
+  if (bell) bell.setAttribute('data-count', n > 0 ? String(n) : '');
+}
+function renderNotifications(filter) {
+  filter = filter || 'all';
+  const list = $('notif-list');
+  if (!list) return;
+  const items = state.notifications.filter((n) => {
+    if (filter === 'unread') return !n.read;
+    if (filter === 'trips')  return n.type === 'trips';
+    return true;
+  });
+  list.innerHTML = '';
+  if (items.length === 0) {
+    const li = document.createElement('li');
+    li.className = 'notif-empty';
+    li.textContent = filter === 'unread' ? 'Nothing unread — you\'re caught up.' : 'No notifications yet.';
+    list.appendChild(li);
+  } else {
+    items.forEach((n) => {
+      const li = document.createElement('li');
+      li.className = 'notif-item' + (n.read ? '' : ' unread');
+      const dot = document.createElement('span');
+      dot.className = 'notif-dot';
+      const body = document.createElement('div');
+      body.className = 'notif-body';
+      const t = document.createElement('div');
+      t.className = 'notif-title';
+      t.textContent = n.title;
+      body.appendChild(t);
+      if (n.body) {
+        const b = document.createElement('div');
+        b.className = 'notif-sub';
+        b.textContent = n.body;
+        body.appendChild(b);
+      }
+      const ts = document.createElement('div');
+      ts.className = 'notif-time';
+      ts.textContent = timeAgo(n.ts);
+      body.appendChild(ts);
+      li.appendChild(dot);
+      li.appendChild(body);
+      li.addEventListener('click', () => { n.read = true; persistNotifications(); updateNotifBadge(); renderNotifications(filter); });
+      list.appendChild(li);
+    });
+  }
+  updateNotifBadge();
+}
+function timeAgo(ts) {
+  const d = (Date.now() - ts) / 1000;
+  if (d < 60) return 'just now';
+  if (d < 3600) return Math.floor(d / 60) + 'm ago';
+  if (d < 86400) return Math.floor(d / 3600) + 'h ago';
+  return new Date(ts).toLocaleDateString();
+}
+function clearNotifications() {
+  if (!confirm('Clear all notifications?')) return;
+  state.notifications = [];
+  persistNotifications();
+  toast('Notifications cleared');
+}
+function markAllRead() {
+  state.notifications.forEach((n) => { n.read = true; });
+  persistNotifications();
+  toast('All marked read');
+}
+function openNotifications() {
+  renderNotifications('all');
+  openModal('notif-modal');
+}
+
+// ---------- Settings ----------
+function openSettings() {
+  const cur = $('set-currency'); if (cur) cur.value = state.currency;
+  const df = $('set-default-fare'); if (df) df.value = state.defaultFare;
+  const th = $('set-theme'); if (th) th.value = document.body.classList.contains('light') ? 'light' : 'dark';
+  const nm = $('set-night-mode'); if (nm) nm.checked = !!state.nightMode;
+  const so = $('set-sound'); if (so) so.checked = !!state.soundOn;
+  openModal('settings-modal');
+}
+function exportData() {
+  const data = {
+    exportedAt: new Date().toISOString(),
+    profile: state.profile,
+    settings: {
+      currency: state.currency, defaultFare: state.defaultFare,
+      nightMode: state.nightMode, soundOn: state.soundOn, city: state.city
+    },
+    history: state.history,
+    notifications: state.notifications
+  };
+  try {
+    const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url; a.download = 'faresplit-export-' + Date.now() + '.json';
+    document.body.appendChild(a); a.click(); a.remove();
+    setTimeout(() => URL.revokeObjectURL(url), 1500);
+    toast('Export downloaded');
+  } catch (e) { toast('Export failed'); }
+}
+function importData(e) {
+  const file = e.target.files && e.target.files[0];
+  if (!file) return;
+  const reader = new FileReader();
+  reader.onload = () => {
+    try {
+      const obj = JSON.parse(reader.result);
+      if (obj.profile) { state.profile = Object.assign(state.profile, obj.profile); try { localStorage.setItem('faresplit-profile', JSON.stringify(state.profile)); } catch (_) {} }
+      if (obj.history && Array.isArray(obj.history)) { state.history = obj.history.slice(0, 20); try { localStorage.setItem('faresplit-history', JSON.stringify(state.history)); } catch (_) {} }
+      if (obj.settings) {
+        Object.assign(state, obj.settings);
+        persistSettings();
+        renderAll();
+        if (state.city) updateLocCity(state.city);
+      }
+      if (obj.notifications && Array.isArray(obj.notifications)) { state.notifications = obj.notifications; persistNotifications(); }
+      renderProfileAvatar(); renderHistory(); updateNotifBadge();
+      toast('Import successful');
+    } catch (_) { toast('Import failed — invalid JSON'); }
+  };
+  reader.readAsText(file);
+  e.target.value = '';
+}
+function wipeAllData() {
+  if (!confirm('Erase ALL local data — profile, settings, history, notifications?')) return;
+  if (!confirm('Really wipe? This cannot be undone.')) return;
+  try {
+    ['faresplit-profile', 'faresplit-settings', 'faresplit-history', 'faresplit-notifs', 'faresplit-theme']
+      .forEach((k) => localStorage.removeItem(k));
+  } catch (_) {}
+  state.profile = { name: '', email: '', phone: '', home: '' };
+  state.currency = '\u09F3';
+  state.defaultFare = 120;
+  state.nightMode = false;
+  state.soundOn = false;
+  state.history = [];
+  state.shareCount = 0;
+  state.notifications = SEED_NOTIFS();
+  persistNotifications();
+  document.body.classList.remove('light', 'night');
+  applyTheme('dark');
+  renderProfileAvatar();
+  renderHistory();
+  updateNotifBadge();
+  toast('All local data cleared');
+}
+
+// ---------- City picker ----------
+const CITIES = [
+  { name: 'Dhaka',     country: 'Bangladesh', cur: '\u09F3', fare: 80  },
+  { name: 'Mumbai',    country: 'India',      cur: '\u20B9', fare: 120 },
+  { name: 'Delhi',     country: 'India',      cur: '\u20B9', fare: 100 },
+  { name: 'Singapore', country: 'Singapore',  cur: 'S$',     fare: 9   },
+  { name: 'Bangkok',   country: 'Thailand',   cur: '\u0E3F', fare: 60  },
+  { name: 'Kuala Lumpur', country: 'Malaysia',cur: 'RM',     fare: 8   },
+  { name: 'New York',  country: 'USA',        cur: '$',      fare: 17  },
+  { name: 'London',    country: 'UK',         cur: '\u00A3', fare: 12  }
+];
+function renderCityList(q) {
+  q = (q || '').trim().toLowerCase();
+  const list = $('city-list');
+  if (!list) return;
+  const filtered = q ? CITIES.filter((c) => (c.name + ' ' + c.country).toLowerCase().includes(q)) : CITIES;
+  list.innerHTML = '';
+  if (filtered.length === 0) {
+    const li = document.createElement('li');
+    li.className = 'city-empty';
+    li.textContent = 'No cities match "' + q + '"';
+    list.appendChild(li);
+    return;
+  }
+  filtered.forEach((c) => {
+    const li = document.createElement('li');
+    li.className = 'city-item';
+    const left = document.createElement('div');
+    left.innerHTML = '<strong>' + escapeHtml(c.name) + '</strong><span class="muted small">' + escapeHtml(c.country) + '</span>';
+    const right = document.createElement('span');
+    right.className = 'city-fare';
+    right.textContent = c.cur + ' ' + c.fare + ' typical';
+    li.appendChild(left);
+    li.appendChild(right);
+    li.addEventListener('click', () => selectCity(c));
+    list.appendChild(li);
+  });
+}
+function selectCity(c) {
+  state.city = c.name + ', ' + c.country;
+  state.defaultFare = c.fare;
+  state.currency = c.cur;
+  updateLocCity(state.city);
+  if ($('total-fare')) $('total-fare').value = c.fare;
+  state.totalFare = c.fare;
+  persistSettings();
+  renderAll();
+  closeModal('city-modal');
+  notifyAdd('City set to ' + state.city, 'trips');
+  toast('City set to ' + state.city);
+}
+function geolocateCity() {
+  if (!navigator.geolocation) { toast('Geolocation not supported'); return; }
+  toast('Locating…');
+  navigator.geolocation.getCurrentPosition(
+    (pos) => {
+      const { latitude, longitude } = pos.coords;
+      let best = CITIES[0], bestD = Infinity;
+      // Tiny city centroid table (approximate, for demo)
+      const centroids = {
+        'Dhaka': [23.81, 90.41], 'Mumbai': [19.07, 72.87], 'Delhi': [28.61, 77.20],
+        'Singapore': [1.35, 103.81], 'Bangkok': [13.75, 100.50], 'Kuala Lumpur': [3.13, 101.68],
+        'New York': [40.71, -74.00], 'London': [51.50, -0.12]
+      };
+      Object.keys(centroids).forEach((name) => {
+        const [lat, lon] = centroids[name];
+        const d = Math.hypot(lat - latitude, lon - longitude);
+        if (d < bestD) { bestD = d; best = CITIES.find((c) => c.name === name) || CITIES[0]; }
+      });
+      selectCity(best);
+    },
+    () => toast('Location denied')
+  );
+}
+function openCityPicker() {
+  if ($('city-input')) $('city-input').value = '';
+  renderCityList('');
+  openModal('city-modal');
+}
+function updateLocCity(label) {
+  const el = $('loc-city');
+  if (el && label) el.textContent = label;
+}
+
+// ---------- Route preview (SVG) ----------
+function openRoutePreview() {
+  if (!state.stops || state.stops.length < 2) {
+    toast('Add at least two stops first');
+    return;
+  }
+  renderRouteSVG();
+  const list = $('route-stop-list');
+  if (list) {
+    list.innerHTML = '';
+    state.stops.forEach((s, i) => {
+      const li = document.createElement('li');
+      const seg = i < state.stops.length - 1
+        ? FareMath.segmentCosts(state.stops, state.totalFare)[i] : 0;
+      li.innerHTML = '<span class="rs-num">' + (i + 1) + '</span>' +
+        '<span class="rs-name">' + escapeHtml(s) + '</span>' +
+        (i < state.stops.length - 1
+          ? '<span class="rs-seg">' + fmtMoney(seg) + '</span>' : '');
+      list.appendChild(li);
+    });
+  }
+  const sum = $('route-summary');
+  if (sum) sum.textContent = state.stops.length + ' stops · total ' + fmtMoney(state.totalFare);
+  openModal('route-modal');
+}
+function renderRouteSVG() {
+  const svg = $('route-svg');
+  if (!svg) return;
+  const W = 320, H = 240, pad = 28;
+  const n = state.stops.length;
+  svg.innerHTML = '';
+  // Curved path through points
+  const pts = state.stops.map((_, i) => {
+    const t = n <= 1 ? 0.5 : i / (n - 1);
+    const x = pad + t * (W - pad * 2);
+    // Slight wave so it looks like a route, not a ruler
+    const y = H / 2 + Math.sin(t * Math.PI * 2) * (H / 2 - pad - 8) * 0.6;
+    return [x, y];
+  });
+  // Path string
+  let d = 'M ' + pts[0][0] + ' ' + pts[0][1];
+  for (let i = 1; i < pts.length; i++) {
+    const [x1, y1] = pts[i - 1];
+    const [x2, y2] = pts[i];
+    const cx = (x1 + x2) / 2;
+    d += ' Q ' + cx + ' ' + y1 + ' ' + cx + ' ' + ((y1 + y2) / 2);
+    d += ' Q ' + cx + ' ' + y2 + ' ' + x2 + ' ' + y2;
+  }
+  const path = document.createElementNS('http://www.w3.org/2000/svg', 'path');
+  path.setAttribute('d', d);
+  path.setAttribute('stroke', '#ff2d2d');
+  path.setAttribute('stroke-width', '3');
+  path.setAttribute('fill', 'none');
+  path.setAttribute('stroke-linecap', 'round');
+  svg.appendChild(path);
+  // Dots + labels
+  pts.forEach(([x, y], i) => {
+    const c = document.createElementNS('http://www.w3.org/2000/svg', 'circle');
+    c.setAttribute('cx', x); c.setAttribute('cy', y); c.setAttribute('r', 7);
+    c.setAttribute('fill', i === 0 ? '#10b981' : (i === pts.length - 1 ? '#ff2d2d' : '#ffffff'));
+    c.setAttribute('stroke', '#ff2d2d'); c.setAttribute('stroke-width', '2');
+    svg.appendChild(c);
+    const t = document.createElementNS('http://www.w3.org/2000/svg', 'text');
+    t.setAttribute('x', x); t.setAttribute('y', y - 12);
+    t.setAttribute('text-anchor', 'middle');
+    t.setAttribute('font-size', '10'); t.setAttribute('fill', '#fff');
+    t.textContent = String(i + 1);
+    svg.appendChild(t);
+  });
+}
+
+// ---------- Scanner ----------
+function openScanModal() {
+  if ($('scan-link')) $('scan-link').value = '';
+  openModal('scan-modal');
+  setTimeout(() => $('scan-link') && $('scan-link').focus(), 80);
+}
+
+// ---------- What\'s new ----------
+const ROUTES_LIBRARY = [
+  { line: 'AC-12',  from: 'Park Street', to: 'Airport',     fare: 120, busy: 'High'   },
+  { line: 'DN-3',   from: 'MG Road',     to: 'Central Stn', fare: 60,  busy: 'Medium' },
+  { line: 'Local 7',from: 'Farmgate',    to: 'New Market',  fare: 30,  busy: 'Low'    },
+  { line: 'Night-1',from: 'Gulshan',     to: 'Old Town',    fare: 180, busy: 'Off-peak' },
+  { line: 'Express',from: 'Uttara',      to: 'Motijheel',   fare: 90,  busy: 'High'   }
+];
+const NEW_ROUTES_THIS_WEEK = [
+  { line: 'Metro-L2', from: 'Mirpur',   to: 'Farmgate',   fare: 50, since: 'Mon' },
+  { line: 'BR-9',     from: 'Sayedabad',to: 'Gulistan',   fare: 25, since: 'Wed' },
+  { line: 'Express-X',from: 'Banani',  to: 'Mohammadpur',fare: 75, since: 'Fri' }
+];
+function openWhatsNew(feature) {
+  // Reuse the route-modal scaffold (has the same shape) but swap its content
+  const card = document.querySelector('#route-modal .modal-card');
+  if (!card) return;
+  const title = card.querySelector('h3');
+  const summary = $('route-summary');
+  const svg = $('route-svg');
+  const list = $('route-stop-list');
+  const acts = card.querySelector('.route-actions');
+  if (feature === 'routes') {
+    title.textContent = 'Curated routes';
+    if (summary) summary.textContent = 'Popular lines with typical fares — tap to load.';
+    if (svg) svg.style.display = 'none';
+    list.innerHTML = '';
+    ROUTES_LIBRARY.forEach((r) => {
+      const li = document.createElement('li');
+      li.innerHTML = '<span class="rs-num">' + escapeHtml(r.line) + '</span>' +
+        '<span class="rs-name">' + escapeHtml(r.from) + ' → ' + escapeHtml(r.to) + '</span>' +
+        '<span class="rs-seg">' + state.currency + ' ' + r.fare + ' · ' + r.busy + '</span>';
+      li.style.cursor = 'pointer';
+      li.addEventListener('click', () => {
+        state.stops = [r.from, r.to];
+        state.totalFare = r.fare;
+        if ($('total-fare')) $('total-fare').value = r.fare;
+        renderAll();
+        closeModal('route-modal');
+        switchView('split');
+        toast('Loaded ' + r.line + ' — add riders and split');
+      });
+      list.appendChild(li);
+    });
+    if (acts) acts.style.display = 'none';
+  } else if (feature === 'newRoutes') {
+    title.textContent = 'New this week';
+    if (summary) summary.textContent = 'Lines added in the last 7 days.';
+    if (svg) svg.style.display = 'none';
+    list.innerHTML = '';
+    NEW_ROUTES_THIS_WEEK.forEach((r) => {
+      const li = document.createElement('li');
+      li.innerHTML = '<span class="rs-num">' + escapeHtml(r.since) + '</span>' +
+        '<span class="rs-name">' + escapeHtml(r.line) + ' · ' + escapeHtml(r.from) + ' → ' + escapeHtml(r.to) + '</span>' +
+        '<span class="rs-seg">' + state.currency + ' ' + r.fare + '</span>';
+      list.appendChild(li);
+    });
+    if (acts) acts.style.display = 'none';
+  } else if (feature === 'night') {
+    title.textContent = 'Night rides';
+    if (summary) summary.textContent = 'Late-night pricing & tips.';
+    if (svg) svg.style.display = 'none';
+    list.innerHTML = '';
+    [
+      'Night services (00:00–05:00) usually cost 1.5× the day fare.',
+      'Most night lines depart every 30–45 min, not every 10.',
+      'Tap the map pin to switch to a city that runs night service.',
+      'Turn on Night rides only in Settings to filter results.'
+    ].forEach((tip) => {
+      const li = document.createElement('li');
+      li.innerHTML = '<span class="rs-num">✦</span><span class="rs-name">' + escapeHtml(tip) + '</span>';
+      list.appendChild(li);
+    });
+    if (acts) acts.style.display = 'none';
+  } else if (feature === 'help') {
+    title.textContent = 'Help & tips';
+    if (summary) summary.textContent = 'Quick how-to for every feature.';
+    if (svg) svg.style.display = 'none';
+    list.innerHTML = '';
+    [
+      'Add stops in the order you ride them.',
+      'Set the total fare, then add each rider with in/out stops.',
+      'Each rider\'s share is the sum of segments they rode.',
+      'Save & Share creates a link you can open on another device.',
+      'History is stored locally — Export to back it up.'
+    ].forEach((tip, i) => {
+      const li = document.createElement('li');
+      li.innerHTML = '<span class="rs-num">' + (i + 1) + '</span><span class="rs-name">' + escapeHtml(tip) + '</span>';
+      list.appendChild(li);
+    });
+    if (acts) acts.style.display = 'none';
+  }
+  // Reset any previous SVG so reopening the modal feels clean
+  if (svg) {
+    svg.innerHTML = '';
+    if (!svg.style.display || svg.style.display === 'none') svg.style.display = '';
+  }
+  openModal('route-modal');
+}
+
+// ---------- Bookings tabs ----------
+function renderBookingsTab(label) {
+  const label2 = (label || '').toLowerCase();
+  // Use the bookings header bar as the injection point: there\'s no
+  // dedicated bookings content block, so we reuse the route-modal.
+  const card = document.querySelector('#route-modal .modal-card');
+  if (!card) return;
+  const title = card.querySelector('h3');
+  const summary = $('route-summary');
+  const svg = $('route-svg');
+  const list = $('route-stop-list');
+  const acts = card.querySelector('.route-actions');
+  if (label2.includes('deal')) {
+    title.textContent = 'Deals';
+    if (summary) summary.textContent = 'Tips to save on your next ride.';
+    if (svg) svg.style.display = 'none';
+    list.innerHTML = '';
+    [
+      'Save 12% with an off-peak return trip (before 7am).',
+      'Group rides (4+ riders) get an automatic 8% off.',
+      'Use "Open a shared trip" to import fare splits from friends.'
+    ].forEach((d, i) => {
+      const li = document.createElement('li');
+      li.innerHTML = '<span class="rs-num">' + (i + 1) + '</span><span class="rs-name">' + escapeHtml(d) + '</span>';
+      list.appendChild(li);
+    });
+    if (acts) acts.style.display = 'none';
+    openModal('route-modal');
+  } else if (label2.includes('detail')) {
+    title.textContent = 'Current trip details';
+    if (summary) summary.textContent = state.stops.length + ' stops · ' + state.passengers.length + ' riders · ' + fmtMoney(state.totalFare);
+    if (svg) svg.style.display = 'none';
+    list.innerHTML = '';
+    state.stops.forEach((s, i) => {
+      const li = document.createElement('li');
+      const seg = i < state.stops.length - 1 ? FareMath.segmentCosts(state.stops, state.totalFare)[i] : 0;
+      li.innerHTML = '<span class="rs-num">' + (i + 1) + '</span><span class="rs-name">' + escapeHtml(s) + '</span>' +
+        (i < state.stops.length - 1 ? '<span class="rs-seg">' + fmtMoney(seg) + '</span>' : '');
+      list.appendChild(li);
+    });
+    if (acts) acts.style.display = '';
+    openModal('route-modal');
+  } else if (label2.includes('review')) {
+    title.textContent = 'Reviews';
+    if (summary) summary.textContent = 'What riders say about FareSplit.';
+    if (svg) svg.style.display = 'none';
+    list.innerHTML = '';
+    [
+      { who: 'Asha, Dhaka',   stars: 5, text: 'Saved an argument with three roommates on the first try.' },
+      { who: 'Bilal, Mumbai', stars: 4, stars_max: 5, text: 'The exact-rounding math is genuinely impressive.' },
+      { who: 'Cyrus, Delhi',  stars: 5, text: 'I share the link in WhatsApp and everyone\'s paid by lunch.' }
+    ].forEach((r) => {
+      const li = document.createElement('li');
+      li.innerHTML = '<span class="rs-num">\u2605'.repeat(r.stars) + '</span>' +
+        '<span class="rs-name">' + escapeHtml(r.text) + '<br><span class="muted small">' + escapeHtml(r.who) + '</span></span>';
+      list.appendChild(li);
+    });
+    if (acts) acts.style.display = 'none';
+    openModal('route-modal');
+  }
+}
+
+// ---------- Book Now ----------
+function bookNow() {
+  if (state.passengers.length === 0) {
+    toast('Add at least one rider first');
+    switchView('split');
+    return;
+  }
+  if (!state.totalFare || state.totalFare <= 0) {
+    toast('Set a total fare first');
+    return;
+  }
+  notifyAdd('Trip booked · ' + state.passengers.length + ' riders · ' + fmtMoney(state.totalFare), 'trips');
+  toast('Booking confirmed \u2713');
+  shareTrip();
+}
+
+// ---------- Hamburger menu (rich items) ----------
+function openRichMenu() {
+  closeSheet();
+  const overlay = document.createElement('div');
+  overlay.id = 'menu-sheet';
+  overlay.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,.7);backdrop-filter:blur(6px);z-index:120;display:flex;align-items:flex-end;justify-content:center;';
+  overlay.addEventListener('click', (e) => { if (e.target === overlay) closeSheet(); });
+  const card = document.createElement('div');
+  card.style.cssText = 'background:var(--card);border:1px solid var(--line);border-radius:24px 24px 0 0;padding:1.25rem 1.2rem calc(1.5rem + env(safe-area-inset-bottom));width:100%;max-width:560px;animation:sheetUp .25s ease-out;';
+  card.innerHTML = `
+    <style>#menu-sheet .handle{display:block;width:42px;height:4px;background:var(--line);border-radius:2px;margin:0 auto 1rem;}
+    #menu-sheet h3{margin:0 0 .25rem;font-size:1.15rem;font-weight:700;}
+    #menu-sheet .sub{margin:0 0 1rem;color:var(--muted);font-size:.85rem;}
+    #menu-sheet .mi{display:flex;align-items:center;gap:.8rem;padding:.8rem 1rem;background:var(--card-2);border:1px solid var(--line);border-radius:14px;margin-bottom:.5rem;cursor:pointer;font-size:.95rem;color:var(--text);}
+    #menu-sheet .mi:hover{border-color:var(--primary);}
+    #menu-sheet .mi .ic{width:36px;height:36px;border-radius:10px;background:var(--card);display:flex;align-items:center;justify-content:center;}
+    #menu-sheet .mi .grow{flex:1;font-weight:600;}
+    #menu-sheet .mi .chev{color:var(--muted);}
+    #menu-sheet .mi.danger{color:#ff6b6b;}
+    @keyframes sheetUp{from{transform:translateY(40px);opacity:0;}to{transform:none;opacity:1;}}</style>
+    <span class="handle"></span>
+    <h3>Menu</h3>
+    <p class="sub">Signed in as ${escapeHtml(state.profile.name || 'Guest')}</p>
+    <div class="mi" data-act="profile"><span class="ic">&#x1F464;</span><span class="grow">My Profile</span><span class="chev">›</span></div>
+    <div class="mi" data-act="notif"><span class="ic">&#x1F514;</span><span class="grow">Notifications</span><span class="chev">›</span></div>
+    <div class="mi" data-act="settings"><span class="ic">&#x2699;</span><span class="grow">Settings</span><span class="chev">›</span></div>
+    <div class="mi" data-act="city"><span class="ic">&#x1F4CD;</span><span class="grow">Change city</span><span class="chev">›</span></div>
+    <div class="mi" data-act="help"><span class="ic">&#x2753;</span><span class="grow">Help &amp; tips</span><span class="chev">›</span></div>
+    <div class="mi danger" data-act="signout"><span class="ic">&#x1F6AA;</span><span class="grow">Sign out</span><span class="chev">›</span></div>
+  `;
+  card.querySelectorAll('.mi').forEach((row) => {
+    row.addEventListener('click', () => {
+      const act = row.dataset.act;
+      closeSheet();
+      if (act === 'profile')   openProfile();
+      else if (act === 'notif') openNotifications();
+      else if (act === 'settings') openSettings();
+      else if (act === 'city') openCityPicker();
+      else if (act === 'help') openWhatsNew('help');
+      else if (act === 'signout') { wipeAllData(); }
+    });
+  });
+  overlay.appendChild(card);
+  document.body.appendChild(overlay);
+  document.body.style.overflow = 'hidden';
 }
 
 // ---------- Boot ----------

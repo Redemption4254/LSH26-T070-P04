@@ -2,7 +2,7 @@
 //  Service Worker - offline support + PWA installability
 // ============================================================
 
-const CACHE = 'faresplit-v4';
+const CACHE = 'faresplit-v5';
 const ASSETS = [
   './',
   './index.html',
