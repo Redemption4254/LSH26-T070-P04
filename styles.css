@@ -873,15 +873,298 @@ body {
 /* =================================================================
    RESPONSIVE
    ================================================================= */
-@media (min-width: 720px) {
-  .hero-title { font-size: 3rem; }
-  .feat-title { font-size: 2.2rem; }
-  .feat-art { width: 180px; }
-  .wn-card { flex: 0 0 280px; }
-}
 @media (max-width: 380px) {
   .hero-title { font-size: 1.85rem; }
   .feat-title { font-size: 1.5rem; }
   .feat-art { width: 100px; }
   .cat-tab { padding: 0.6rem 0.9rem; font-size: 0.85rem; }
 }
+
+/* =================================================================
+   DESKTOP LAYOUT (>= 960px)
+   Three-column shell: rail · content · summary
+   ================================================================= */
+@media (min-width: 960px) {
+  .view.desktop-shell {
+    display: grid;
+    grid-template-columns: 260px minmax(0, 1fr) 340px;
+    gap: 1.5rem;
+    max-width: 1380px;
+    padding: 1.25rem 1.5rem 220px;
+    align-items: start;
+  }
+  .view.desktop-shell > .content,
+  .view.desktop-shell > aside.rail,
+  .view.desktop-shell > aside.summary {
+    display: block;
+    min-width: 0;
+  }
+  /* On desktop the floating bottom nav duplicates the rail. Hide it. */
+  .view.desktop-shell .bottom-nav { display: none; }
+  /* Hero + cards breathe inside the content column */
+  .view.desktop-shell .hero-title { font-size: 3.4rem; }
+  .view.desktop-shell .hero-sub { color: var(--muted); max-width: 56ch; line-height: 1.5; margin-top: .65rem; font-size: 1.02rem; }
+  .view.desktop-shell .feat-title { font-size: 2.4rem; }
+  .view.desktop-shell .feat-art { width: 200px; }
+  .view.desktop-shell .wn-card { flex: 0 0 280px; }
+  /* Sticky summary */
+  .view.desktop-shell aside.summary {
+    position: sticky;
+    top: 1.25rem;
+  }
+  /* Make cat-tabs look like stepper pills */
+  .view.desktop-shell .cat-tabs { padding: .25rem; background: var(--card); border: 1px solid var(--line); border-radius: 999px; }
+  .view.desktop-shell .cat-tab {
+    background: transparent;
+    border: 0;
+    padding: .65rem 1rem;
+  }
+  .view.desktop-shell .cat-tab.active {
+    background: var(--primary);
+    border-radius: 999px;
+    color: #fff;
+  }
+  .view.desktop-shell .cat-tab.active .cat-ico { background: rgba(255,255,255,.2); color:#fff; }
+  /* Topbar flush inside content */
+  .view.desktop-shell .topbar { background: transparent; }
+}
+
+@media (min-width: 1280px) {
+  .view.desktop-shell {
+    grid-template-columns: 280px minmax(0, 1fr) 380px;
+    gap: 2rem;
+    padding: 1.5rem 2rem 220px;
+  }
+  .view.desktop-shell .hero-title { font-size: 4rem; }
+}
+
+/* =================================================================
+   LEFT RAIL
+   ================================================================= */
+.rail {
+  display: none;
+  position: sticky;
+  top: 1.25rem;
+  align-self: start;
+  padding: 1rem;
+  background: linear-gradient(180deg, var(--card) 0%, var(--bg-2) 100%);
+  border: 1px solid var(--line);
+  border-radius: var(--radius-card);
+  box-shadow: 0 6px 24px rgba(0,0,0,.25);
+}
+.rail-brand {
+  display: flex; align-items: center; gap: .75rem;
+  padding: .25rem .5rem .9rem;
+  border-bottom: 1px solid var(--line);
+}
+.rail-mark {
+  width: 38px; height: 38px;
+  border-radius: 12px;
+  background: linear-gradient(135deg, #ff5a3a 0%, #d92020 100%);
+  display: inline-flex; align-items: center; justify-content: center;
+  color: #fff;
+  box-shadow: 0 6px 14px rgba(255,45,45,.35);
+}
+.rail-name { display: flex; flex-direction: column; line-height: 1.15; }
+.rail-name strong { font-size: 1.02rem; letter-spacing: -.02em; }
+.rail-name span { font-size: .76rem; color: var(--muted); }
+.rail-nav {
+  display: flex; flex-direction: column;
+  gap: .15rem;
+  margin: 1rem 0 1.25rem;
+}
+.rail-link {
+  display: flex; align-items: center; gap: .65rem;
+  padding: .65rem .8rem;
+  border-radius: 12px;
+  color: var(--muted);
+  text-decoration: none;
+  font-weight: 600;
+  font-size: .95rem;
+  transition: background .15s, color .15s;
+}
+.rail-link:hover { background: var(--card-2); color: var(--text); }
+.rail-link.active {
+  background: rgba(255,45,45,.12);
+  color: var(--primary);
+}
+.rail-link .dot {
+  width: 8px; height: 8px; border-radius: 50%;
+  background: currentColor; opacity: .55;
+}
+.rail-promo {
+  padding: .85rem .95rem;
+  border: 1px dashed var(--line);
+  border-radius: 16px;
+  background: var(--card-2);
+  margin-bottom: 1rem;
+}
+.rail-promo h4 {
+  margin: .25rem 0 .35rem;
+  font-size: .92rem;
+  letter-spacing: -.01em;
+  line-height: 1.3;
+}
+.rail-promo code {
+  background: var(--bg);
+  padding: 1px 5px;
+  border-radius: 6px;
+  font-size: .85em;
+}
+.rail-foot {
+  display: flex; align-items: center; gap: .35rem;
+  color: var(--muted);
+  font-size: .76rem;
+  padding: .25rem .5rem 0;
+}
+.dot-sep { opacity: .6; }
+.muted { color: var(--muted); }
+.kicker {
+  margin: 0 0 .35rem;
+  color: var(--primary);
+  font-size: .72rem;
+  font-weight: 700;
+  letter-spacing: .12em;
+  text-transform: uppercase;
+}
+
+/* =================================================================
+   RIGHT SUMMARY PANE
+   ================================================================= */
+.summary {
+  display: none;
+  flex-direction: column;
+  gap: 1rem;
+}
+.sum-card {
+  background: var(--card);
+  border: 1px solid var(--line);
+  border-radius: var(--radius-card);
+  padding: 1.1rem 1.2rem;
+  box-shadow: var(--shadow);
+}
+.sum-hero {
+  background:
+    radial-gradient(120% 80% at 0% 0%, rgba(255,45,45,.18), transparent 55%),
+    radial-gradient(140% 100% at 100% 100%, rgba(255,90,90,.10), transparent 60%),
+    var(--card);
+  border: 1px solid rgba(255,45,45,.18);
+}
+.sum-amount {
+  font-variant-numeric: tabular-nums;
+  font-weight: 900;
+  letter-spacing: -.04em;
+  font-size: 2.6rem;
+  line-height: 1.05;
+  display: flex;
+  align-items: baseline;
+  gap: .15rem;
+  margin: .15rem 0 .65rem;
+}
+.sum-amount .cur { color: var(--muted); font-size: 1.6rem; font-weight: 700; margin-right: .15rem; }
+.sum-amount .dec { color: var(--muted); font-size: 1.6rem; font-weight: 700; }
+.sum-bar {
+  height: 6px;
+  background: var(--bg-2);
+  border-radius: 999px;
+  overflow: hidden;
+  margin-bottom: .6rem;
+}
+.sum-bar > span {
+  display: block; height: 100%;
+  width: 0%;
+  background: linear-gradient(90deg, var(--primary), var(--primary-2));
+  border-radius: 999px;
+  transition: width .35s cubic-bezier(.4,.2,.2,1);
+}
+.sum-status { margin: 0; color: var(--muted); font-size: .85rem; }
+
+.sum-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: .65rem;
+}
+.sum-tile {
+  background: var(--card);
+  border: 1px solid var(--line);
+  border-radius: 18px;
+  padding: .85rem 1rem;
+  transition: transform .15s, border-color .15s;
+}
+.sum-tile:hover { transform: translateY(-1px); border-color: rgba(255,45,45,.4); }
+.t-label { margin: 0; color: var(--muted); font-size: .72rem; font-weight: 600; letter-spacing: .12em; text-transform: uppercase; }
+.t-val { margin: .15rem 0 0; font-size: 1.5rem; font-weight: 800; letter-spacing: -.02em; font-variant-numeric: tabular-nums; }
+.t-val .cur { color: var(--muted); font-size: .95rem; font-weight: 700; margin-right: 2px; }
+
+.sum-riders { padding-bottom: .8rem; }
+.sum-share-list {
+  list-style: none;
+  padding: 0; margin: .25rem 0 0;
+  max-height: 320px;
+  overflow-y: auto;
+  scrollbar-width: thin;
+}
+.sum-share-list li {
+  display: flex; align-items: center; gap: .7rem;
+  padding: .55rem 0;
+  border-bottom: 1px solid var(--line);
+}
+.sum-share-list li:last-child { border-bottom: 0; }
+.sum-share-list .av {
+  width: 30px; height: 30px;
+  border-radius: 50%;
+  background: linear-gradient(135deg, var(--primary), var(--primary-2));
+  color: #fff;
+  display: inline-flex; align-items: center; justify-content: center;
+  font-weight: 700;
+  font-size: .82rem;
+  flex-shrink: 0;
+}
+.sum-share-list .nm { flex: 1; min-width: 0; font-weight: 600; font-size: .92rem; }
+.sum-share-list .rt { color: var(--muted); font-size: .72rem; }
+.sum-share-list .sh {
+  font-weight: 800; letter-spacing: -.02em;
+  font-variant-numeric: tabular-nums;
+  color: var(--text);
+}
+.sum-share-list .empty {
+  color: var(--muted);
+  font-size: .88rem;
+  padding: .65rem 0;
+  text-align: center;
+}
+.sum-footnote { margin: -.25rem .25rem 0; font-size: .72rem; }
+
+/* =================================================================
+   REVEAL ON SCROLL + STAGGER
+   ================================================================= */
+.reveal {
+  opacity: 0;
+  transform: translateY(8px);
+  transition: opacity .55s ease-out, transform .55s ease-out;
+  transition-delay: var(--delay, 0ms);
+}
+.reveal.in {
+  opacity: 1;
+  transform: none;
+}
+
+/* Glassy backdrop on the content column for premium feel */
+.view.desktop-shell > .content {
+  position: relative;
+}
+.view.desktop-shell > .content::before {
+  content: "";
+  position: absolute;
+  inset: -40px -40px auto -40px;
+  height: 280px;
+  background:
+    radial-gradient(40% 70% at 12% 0%, rgba(255,45,45,.18), transparent 70%),
+    radial-gradient(40% 70% at 88% 0%, rgba(90,90,255,.10), transparent 70%);
+  filter: blur(20px);
+  z-index: -1;
+  pointer-events: none;
+}
+
+/* Animated counter tweening (set by JS via CSS variable) */
+.tween { font-variant-numeric: tabular-nums; }

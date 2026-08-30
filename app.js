@@ -339,6 +339,18 @@ function wireEvents() {
   document.querySelectorAll('.nav-btn, .nav-fab').forEach((b) => {
     b.addEventListener('click', () => switchView(b.dataset.view));
   });
+  document.querySelectorAll('.rail-link').forEach((a) => {
+    a.addEventListener('click', (e) => {
+      e.preventDefault();
+      switchView(a.dataset.view);
+    });
+  });
+  // Summary pane Share button
+  $('sum-share')?.addEventListener('click', shareTrip);
+  // Scroll-reveal observer
+  setupReveals();
+  // First-paint summary
+  updateSummary();
 }
 
 // ---------- Theme ----------
@@ -371,12 +383,12 @@ function switchView(name) {
     b.classList.toggle('active', active);
     b.setAttribute('aria-selected', String(active));
   });
+  document.querySelectorAll('.rail-link').forEach((a) => {
+    a.classList.toggle('active', a.dataset.view === name);
+  });
   document.getElementById('view-' + name)?.classList.add('active');
   if (name === 'history') renderHistory();
-  // Scroll the selected step card into view if switching to "split"
-  if (name === 'split') {
-    window.scrollTo({ top: 0, behavior: 'smooth' });
-  }
+  if (name === 'split') window.scrollTo({ top: 0, behavior: 'smooth' });
 }
 
 // ---------- Backend health ----------
@@ -578,6 +590,112 @@ const FareMath = {
 window.FareMath = FareMath;
 
 // ---------- Results rendering (Bookings style) ----------
+// ---------- Live summary pane (desktop right rail) ----------
+function updateSummary() {
+  const totEl   = $('sum-total');
+  const stEl    = $('sum-stops');
+  const riEl    = $('sum-riders');
+  const segEl   = $('sum-segments');
+  const segCEl  = $('sum-segment');
+  const fill    = $('sum-bar-fill');
+  const status  = $('sum-status');
+  const list    = $('sum-share-list');
+  if (!totEl) return; // pane not present (very narrow screens)
+
+  const total = Number(state.totalFare) || 0;
+  const stops = state.stops.length;
+  const riders = state.passengers.length;
+  const segCosts = FareMath.segmentCosts(state.stops, total);
+  const segCount = Math.max(0, stops - 1);
+  const segPrice = segCount > 0 ? (total / segCount) : 0;
+
+  tweenNumber(totEl, total);
+  tweenNumber(stEl, stops);
+  tweenNumber(riEl, riders);
+  tweenNumber(segEl, segCount);
+  tweenNumber(segCEl, segPrice, true);
+
+  // Bar: filled proportionally to a 2000 ceiling so it grows visibly
+  const pct = Math.min(100, (total / 2000) * 100);
+  if (fill) fill.style.width = pct + '%';
+
+  // Status copy
+  let msg = 'Add a route to begin';
+  if (stops >= 2 && riders === 0) msg = 'Now add some riders';
+  else if (stops < 2 && riders > 0) msg = 'Add at least 2 stops';
+  else if (stops >= 2 && riders >= 1) msg = 'Live · exact-cent math';
+  if (status) status.textContent = msg;
+
+  // Roster
+  if (list) {
+    list.innerHTML = '';
+    if (riders === 0) {
+      const li = document.createElement('li');
+      li.className = 'empty';
+      li.textContent = 'No riders yet — open the menu to add some.';
+      list.appendChild(li);
+    } else {
+      const { shares, segsByP } = FareMath.passengerShares(
+        state.passengers, segCosts, total, state.stops
+      );
+      state.passengers.forEach((p, i) => {
+        const segs = segsByP[i] || [];
+        const li = document.createElement('li');
+        const av = document.createElement('span');
+        av.className = 'av';
+        av.textContent = (p.name || '?').trim().charAt(0).toUpperCase();
+        const nm = document.createElement('div');
+        nm.className = 'nm';
+        nm.innerHTML = `<div>${escapeHtml(p.name)}</div>
+                        <div class="rt">${segs.length} segment${segs.length === 1 ? '' : 's'}</div>`;
+        const sh = document.createElement('div');
+        sh.className = 'sh';
+        sh.textContent = fmtMoney(shares[i] || 0).replace('₹ ', '₹');
+        li.append(av, nm, sh);
+        list.appendChild(li);
+      });
+    }
+  }
+}
+
+// Smoothly tween a number into an element using requestAnimationFrame.
+// Honors prefers-reduced-motion.
+function tweenNumber(el, target, isCurrency) {
+  if (!el) return;
+  const cur = Number(el.dataset.val ?? el.textContent.replace(/[^\d.]/g, '')) || 0;
+  const dur = 600;
+  const start = performance.now();
+  const reduce = matchMedia('(prefers-reduced-motion: reduce)').matches;
+  if (reduce || cur === target) { el.textContent = isCurrency ? target.toFixed(2) : Math.round(target); el.dataset.val = String(target); return; }
+  function step(now) {
+    const t = Math.min(1, (now - start) / dur);
+    const eased = 1 - Math.pow(1 - t, 3);
+    const v = cur + (target - cur) * eased;
+    el.textContent = isCurrency ? v.toFixed(2) : Math.round(v);
+    if (t < 1) requestAnimationFrame(step);
+    else el.dataset.val = String(target);
+  }
+  requestAnimationFrame(step);
+}
+
+// Scroll-reveal using IntersectionObserver; falls back gracefully if unavailable.
+function setupReveals() {
+  const els = document.querySelectorAll('.reveal');
+  if (!('IntersectionObserver' in window)) {
+    els.forEach((e) => e.classList.add('in'));
+    return;
+  }
+  const io = new IntersectionObserver((entries) => {
+    entries.forEach((entry) => {
+      if (entry.isIntersecting) {
+        entry.target.classList.add('in');
+        io.unobserve(entry.target);
+      }
+    });
+  }, { rootMargin: '0px 0px -8% 0px', threshold: 0.08 });
+  els.forEach((e) => io.observe(e));
+}
+
 function renderResults() {
   const container = $('results-visible');
   if (!container) return;
@@ -659,6 +777,9 @@ function renderResults() {
     `Total ${fmtMoney(totalShown)} across ${state.passengers.length} passenger${state.passengers.length === 1 ? '' : 's'}` +
     (absorber !== null ? `. Remainder absorbed by ${state.passengers[absorber].name}.` : '')
   );
+
+  // Keep the desktop live-summary pane in sync.
+  updateSummary();
 }
 
 function updateBookingsHeader(total, count) {
@@ -674,7 +795,8 @@ function updateBookNowBar(total) {
   if (label) label.textContent = `${state.passengers.length || 0} Deal${state.passengers.length === 1 ? '' : 's'} left`;
 }
 
-// Debounced render for text-input-driven re-renders
+// Debounced render for text-input-driven re-renders.
+// `renderResults` itself keeps the desktop live-summary pane in sync.
 const scheduleResultsRender = debounce(renderResults, 80);
 
 // ---------- Share / Backend ----------

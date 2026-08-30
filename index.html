@@ -15,60 +15,93 @@
 <body>
   <!-- =================================================================
        VIEW 1 — SPLIT (Explore-style landing, the reference design)
+       Desktop layout: aside rail + main content + live-summary pane.
        ================================================================= -->
-  <main id="view-split" class="view active">
+  <main id="view-split" class="view active desktop-shell">
 
-    <!-- Top bar: hamburger + bell + avatar -->
-    <header class="topbar">
-      <button class="round-icon" id="menu-btn" aria-label="Menu">
-        <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><path d="M3 6h18M3 12h18M3 18h18"/></svg>
-      </button>
-      <div class="topbar-right">
-        <button class="round-icon" id="bell-btn" aria-label="Notifications">
-          <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M6 8a6 6 0 1 1 12 0c0 7 3 7 3 9H3c0-2 3-2 3-9z"/><path d="M10 21a2 2 0 0 0 4 0"/></svg>
-          <span class="badge-dot"></span>
-        </button>
-        <button class="avatar-photo" id="theme-toggle" aria-label="Toggle theme">
-          <span>F</span>
-        </button>
+    <!-- Left rail (desktop only): brand + section nav + brand promise -->
+    <aside class="rail">
+      <div class="rail-brand">
+        <div class="rail-mark">
+          <svg viewBox="0 0 32 32" width="22" height="22" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M6 22V11a4 4 0 0 1 4-4h12a4 4 0 0 1 4 4v11"/><path d="M4 22h24"/><circle cx="11" cy="22" r="2.2" fill="currentColor"/><circle cx="21" cy="22" r="2.2" fill="currentColor"/><path d="M9 12h14"/></svg>
+        </div>
+        <div class="rail-name">
+          <strong>FareSplit</strong>
+          <span>Exact cents, every trip.</span>
+        </div>
       </div>
-    </header>
+      <nav class="rail-nav" aria-label="Sections">
+        <a class="rail-link active" data-view="split" href="#view-split"><span class="dot"></span> Split</a>
+        <a class="rail-link" data-view="results" href="#view-results"><span class="dot"></span> Results</a>
+        <a class="rail-link" data-view="history" href="#view-history"><span class="dot"></span> History</a>
+        <a class="rail-link" data-view="about" href="#view-about"><span class="dot"></span> About</a>
+      </nav>
+      <div class="rail-promo reveal">
+        <p class="kicker">Why FareSplit?</p>
+        <h4>Shares always sum to the total. To the cent.</h4>
+        <p class="muted">No fractional rupees hidden in the math. Open <code>tests.html</code> to see the proof.</p>
+      </div>
+      <div class="rail-foot">
+        <span>v2.0</span>
+        <span class="dot-sep">·</span>
+        <span>Built for hackathons</span>
+      </div>
+    </aside>
 
-    <!-- Hero headline -->
-    <section class="hero">
-      <p class="eyebrow">Explore</p>
-      <h1 class="hero-title">Go Every <span>Where?</span></h1>
-    </section>
+    <!-- Center column: hero + controls + horizontal scroll cards -->
+    <section class="content">
+      <!-- Top bar: hamburger + bell + avatar -->
+      <header class="topbar">
+        <button class="round-icon" id="menu-btn" aria-label="Menu">
+          <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><path d="M3 6h18M3 12h18M3 18h18"/></svg>
+        </button>
+        <div class="topbar-right">
+          <button class="round-icon" id="bell-btn" aria-label="Notifications">
+            <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M6 8a6 6 0 1 1 12 0c0 7 3 7 3 9H3c0-2 3-2 3-9z"/><path d="M10 21a2 2 0 0 0 4 0"/></svg>
+            <span class="badge-dot"></span>
+          </button>
+          <button class="avatar-photo" id="theme-toggle" aria-label="Toggle theme">
+            <span>F</span>
+          </button>
+        </div>
+      </header>
 
-    <!-- Location pill (Current: ... + red circle button) -->
-    <section class="loc-pill" id="api-status-wrap">
-      <span class="loc-text">Current : <strong id="loc-city">Las Vegas, USA</strong></span>
-      <button class="loc-pin" aria-label="Use current location">
-        <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="white" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 21s-7-7.5-7-12a7 7 0 1 1 14 0c0 4.5-7 12-7 12z"/><circle cx="12" cy="9" r="2.5"/></svg>
-      </button>
-    </section>
+      <!-- Hero headline -->
+      <section class="hero reveal">
+        <p class="eyebrow">Explore</p>
+        <h1 class="hero-title">Go Every <span>Where?</span></h1>
+        <p class="hero-sub">Plan a route, add riders, see your share — with exact rounding and a visible audit trail.</p>
+      </section>
 
-    <!-- Category tabs -->
-    <nav class="cat-tabs" role="tablist" aria-label="Steps">
-      <button class="cat-tab active" data-step="route" role="tab" aria-selected="true">
-        <span class="cat-ico">
-          <svg viewBox="0 0 24 24" width="16" height="16" fill="white"><path d="M4 6a2 2 0 0 1 2-2h12a2 2 0 0 1 2 2v9a2 2 0 0 1-2 2h-3l1 2h-2l-1-2H9l-1 2H6l1-2H6a2 2 0 0 1-2-2V6zm2 1v5h12V7H6zm0 7v1h12v-1H6zm2 1.5a1.2 1.2 0 1 0 0 2.4 1.2 1.2 0 0 0 0-2.4zm8 0a1.2 1.2 0 1 0 0 2.4 1.2 1.2 0 0 0 0-2.4z"/></svg>
-        </span>
-        Bus Tickets
-      </button>
-      <button class="cat-tab" data-step="passengers" role="tab" aria-selected="false">
-        <span class="cat-ico">
-          <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M3 18s1-4 5-4 5 4 5 4M16 18s.5-3 3-3 3 3 3 3M11 8a3 3 0 1 1-6 0 3 3 0 0 1 6 0zM21 10a2.5 2.5 0 1 1-5 0 2.5 2.5 0 0 1 5 0z"/></svg>
-        </span>
-        Riders
-      </button>
-      <button class="cat-tab" data-step="results" role="tab" aria-selected="false">
-        <span class="cat-ico">
-          <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><path d="M9 12h6M12 9v6"/></svg>
-        </span>
-        Things To Do
-      </button>
-    </nav>
+      <!-- Location pill (Current: ... + red circle button) -->
+      <section class="loc-pill reveal" id="api-status-wrap" style="--delay:60ms">
+        <span class="loc-text">Current : <strong id="loc-city">Las Vegas, USA</strong></span>
+        <button class="loc-pin" aria-label="Use current location">
+          <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="white" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 21s-7-7.5-7-12a7 7 0 1 1 14 0c0 4.5-7 12-7 12z"/><circle cx="12" cy="9" r="2.5"/></svg>
+        </button>
+      </section>
+
+      <!-- Category tabs -->
+      <nav class="cat-tabs reveal" style="--delay:120ms" role="tablist" aria-label="Steps">
+        <button class="cat-tab active" data-step="route" role="tab" aria-selected="true">
+          <span class="cat-ico">
+            <svg viewBox="0 0 24 24" width="16" height="16" fill="white"><path d="M4 6a2 2 0 0 1 2-2h12a2 2 0 0 1 2 2v9a2 2 0 0 1-2 2h-3l1 2h-2l-1-2H9l-1 2H6l1-2H6a2 2 0 0 1-2-2V6zm2 1v5h12V7H6zm0 7v1h12v-1H6zm2 1.5a1.2 1.2 0 1 0 0 2.4 1.2 1.2 0 0 0 0-2.4zm8 0a1.2 1.2 0 1 0 0 2.4 1.2 1.2 0 0 0 0-2.4z"/></svg>
+          </span>
+          Route
+        </button>
+        <button class="cat-tab" data-step="passengers" role="tab" aria-selected="false">
+          <span class="cat-ico">
+            <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M3 18s1-4 5-4 5 4 5 4M16 18s.5-3 3-3 3 3 3 3M11 8a3 3 0 1 1-6 0 3 3 0 0 1 6 0zM21 10a2.5 2.5 0 1 1-5 0 2.5 2.5 0 0 1 5 0z"/></svg>
+          </span>
+          Riders
+        </button>
+        <button class="cat-tab" data-step="results" role="tab" aria-selected="false">
+          <span class="cat-ico">
+            <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><path d="M9 12h6M12 9v6"/></svg>
+          </span>
+          Split
+        </button>
+      </nav>
 
     <!-- Featured route card (Las Vegas Station) -->
     <section class="card feat-card" id="card-route">
@@ -214,6 +247,52 @@
         <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><path d="M12 16v-4M12 8h.01"/></svg>
       </button>
     </nav>
+    </section><!-- /.content -->
+
+    <!-- =================================================================
+         LIVE SUMMARY PANE (desktop only, sticky)
+         KPIs: total fare · riders · your share · per-segment cost
+         ================================================================= -->
+    <aside class="summary" aria-label="Live summary">
+      <div class="sum-card sum-hero reveal">
+        <p class="kicker">Live total</p>
+        <div class="sum-amount">
+          <span class="cur">₹</span><span id="sum-total">0</span><span class="dec">.00</span>
+        </div>
+        <div class="sum-bar"><span id="sum-bar-fill"></span></div>
+        <p class="sum-status" id="sum-status">Add a route to begin</p>
+      </div>
+
+      <div class="sum-grid">
+        <div class="sum-tile reveal" style="--delay:80ms">
+          <p class="t-label">Stops</p>
+          <p class="t-val" id="sum-stops">0</p>
+        </div>
+        <div class="sum-tile reveal" style="--delay:140ms">
+          <p class="t-label">Riders</p>
+          <p class="t-val" id="sum-riders">0</p>
+        </div>
+        <div class="sum-tile reveal" style="--delay:200ms">
+          <p class="t-label">Segments</p>
+          <p class="t-val" id="sum-segments">0</p>
+        </div>
+        <div class="sum-tile reveal" style="--delay:260ms">
+          <p class="t-label">Per‑segment</p>
+          <p class="t-val"><span class="cur">₹</span><span id="sum-segment">0</span></p>
+        </div>
+      </div>
+
+      <div class="sum-card sum-riders reveal" style="--delay:320ms">
+        <p class="kicker">Riders &amp; shares</p>
+        <ul id="sum-share-list" class="sum-share-list"></ul>
+      </div>
+
+      <button class="btn primary block" id="sum-share" aria-label="Share trip">
+        <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="18" cy="5" r="3"/><circle cx="6" cy="12" r="3"/><circle cx="18" cy="19" r="3"/><path d="M8.5 10.5l7-4M8.5 13.5l7 4"/></svg>
+        Share trip
+      </button>
+      <p class="muted small sum-footnote">All math runs locally on your device.</p>
+    </aside>
   </main>
 
   <!-- =================================================================
