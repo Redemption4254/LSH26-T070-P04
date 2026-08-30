@@ -3,132 +3,300 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
-  <meta name="theme-color" content="#000000" />
-  <title>FareSplit</title>
+  <meta name="theme-color" content="#0a0a0c" />
+  <title>FareSplit · Bus Route Fare Splitter</title>
   <link rel="manifest" href="manifest.json" />
   <link rel="stylesheet" href="styles.css" />
   <link rel="icon" href="data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'><text y='52' font-size='52'>%F0%9F%9A%8D</text></svg>" />
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
-  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet" />
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800;900&display=swap" rel="stylesheet" />
 </head>
 <body>
-  <!-- Header (Explore-style) -->
-  <header class="app-header">
-    <button class="round-btn" id="menu-btn" aria-label="Menu">&#9776;</button>
-    <div class="header-right">
-      <button class="round-btn" id="theme-toggle" aria-label="Toggle theme">&#9728;</button>
-      <div class="avatar" aria-hidden="true">FS</div>
-    </div>
-  </header>
-
-  <!-- View: Split -->
+  <!-- =================================================================
+       VIEW 1 — SPLIT (Explore-style landing, the reference design)
+       ================================================================= -->
   <main id="view-split" class="view active">
+
+    <!-- Top bar: hamburger + bell + avatar -->
+    <header class="topbar">
+      <button class="round-icon" id="menu-btn" aria-label="Menu">
+        <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><path d="M3 6h18M3 12h18M3 18h18"/></svg>
+      </button>
+      <div class="topbar-right">
+        <button class="round-icon" id="bell-btn" aria-label="Notifications">
+          <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M6 8a6 6 0 1 1 12 0c0 7 3 7 3 9H3c0-2 3-2 3-9z"/><path d="M10 21a2 2 0 0 0 4 0"/></svg>
+          <span class="badge-dot"></span>
+        </button>
+        <button class="avatar-photo" id="theme-toggle" aria-label="Toggle theme">
+          <span>F</span>
+        </button>
+      </div>
+    </header>
+
+    <!-- Hero headline -->
     <section class="hero">
       <p class="eyebrow">Explore</p>
-      <h1 class="hero-title">Split the fare, <span>not the friendship.</span></h1>
+      <h1 class="hero-title">Go Every <span>Where?</span></h1>
     </section>
 
-    <!-- Location / Search style pill -->
-    <section class="search-pill" id="api-status-wrap">
-      <span class="dot"></span>
-      <span class="status-text" id="api-status">Connecting&hellip;</span>
+    <!-- Location pill (Current: ... + red circle button) -->
+    <section class="loc-pill" id="api-status-wrap">
+      <span class="loc-text">Current : <strong id="loc-city">Las Vegas, USA</strong></span>
+      <button class="loc-pin" aria-label="Use current location">
+        <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="white" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 21s-7-7.5-7-12a7 7 0 1 1 14 0c0 4.5-7 12-7 12z"/><circle cx="12" cy="9" r="2.5"/></svg>
+      </button>
     </section>
 
-    <!-- Category tabs (steps) -->
-    <nav class="pill-tabs" aria-label="Steps">
-      <button class="pill-tab active" data-step="route"><span class="tab-ico">&#128652;</span>Route</button>
-      <button class="pill-tab" data-step="passengers"><span class="tab-ico">&#128101;</span>Riders</button>
-      <button class="pill-tab" data-step="results"><span class="tab-ico">&#128200;</span>Split</button>
+    <!-- Category tabs -->
+    <nav class="cat-tabs" role="tablist" aria-label="Steps">
+      <button class="cat-tab active" data-step="route" role="tab" aria-selected="true">
+        <span class="cat-ico">
+          <svg viewBox="0 0 24 24" width="16" height="16" fill="white"><path d="M4 6a2 2 0 0 1 2-2h12a2 2 0 0 1 2 2v9a2 2 0 0 1-2 2h-3l1 2h-2l-1-2H9l-1 2H6l1-2H6a2 2 0 0 1-2-2V6zm2 1v5h12V7H6zm0 7v1h12v-1H6zm2 1.5a1.2 1.2 0 1 0 0 2.4 1.2 1.2 0 0 0 0-2.4zm8 0a1.2 1.2 0 1 0 0 2.4 1.2 1.2 0 0 0 0-2.4z"/></svg>
+        </span>
+        Bus Tickets
+      </button>
+      <button class="cat-tab" data-step="passengers" role="tab" aria-selected="false">
+        <span class="cat-ico">
+          <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M3 18s1-4 5-4 5 4 5 4M16 18s.5-3 3-3 3 3 3 3M11 8a3 3 0 1 1-6 0 3 3 0 0 1 6 0zM21 10a2.5 2.5 0 1 1-5 0 2.5 2.5 0 0 1 5 0z"/></svg>
+        </span>
+        Riders
+      </button>
+      <button class="cat-tab" data-step="results" role="tab" aria-selected="false">
+        <span class="cat-ico">
+          <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><path d="M9 12h6M12 9v6"/></svg>
+        </span>
+        Things To Do
+      </button>
     </nav>
 
-    <!-- 1 · Route card -->
-    <section class="card route-card" id="card-route">
-      <div class="card-meta">
-        <span class="badge">Step 1</span>
-        <span class="badge subtle">Route</span>
+    <!-- Featured route card (Las Vegas Station) -->
+    <section class="card feat-card" id="card-route">
+      <div class="feat-meta">
+        <span class="tag-pill">Central Line</span>
+        <span class="tag-pill subtle">8-10 mins</span>
       </div>
-      <div class="route-headline">
-        <h2>Your stops</h2>
-        <span class="route-fare-label">Total fare</span>
-      </div>
-      <div class="fare-input-wrap">
-        <span class="currency">&#8377;</span>
-        <input type="number" id="total-fare" min="0" step="0.01" value="120" inputmode="decimal" aria-label="Total fare" />
-      </div>
-
-      <ol id="stops-list" class="stops-list"></ol>
-
-      <div class="add-stop-row">
-        <input type="text" id="new-stop" placeholder="Add a stop&hellip;" maxlength="60" />
-        <button id="add-stop" class="round-btn dark" aria-label="Add stop">+</button>
+      <div class="feat-row">
+        <div class="feat-text">
+          <h2 class="feat-title">Las Vegas<br/>Station</h2>
+          <div class="feat-actions">
+            <button class="cam-btn" id="cam-btn" aria-label="Scan ticket">
+              <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="white" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 7h4l2-3h6l2 3h4v13H3V7z"/><circle cx="12" cy="13" r="4"/></svg>
+            </button>
+            <button class="ghost-pill" id="ghost-next" aria-label="Next">
+              <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M9 6l6 6-6 6"/></svg>
+              <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M9 6l6 6-6 6"/></svg>
+              <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M9 6l6 6-6 6"/></svg>
+            </button>
+            <button class="ghost-pill" aria-label="Map">
+              <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 4l-6 2v14l6-2 6 2 6-2V4l-6 2-6-2zM9 4v14M15 6v14"/></svg>
+            </button>
+          </div>
+        </div>
+        <!-- Bus illustration -->
+        <div class="feat-art" aria-hidden="true">
+          <svg viewBox="0 0 240 180" width="100%" height="100%">
+            <defs>
+              <linearGradient id="busGrad" x1="0" x2="0" y1="0" y2="1">
+                <stop offset="0%" stop-color="#ff3b3b"/>
+                <stop offset="100%" stop-color="#d92020"/>
+              </linearGradient>
+              <linearGradient id="busWindow" x1="0" x2="0" y1="0" y2="1">
+                <stop offset="0%" stop-color="#1a1a1f"/>
+                <stop offset="100%" stop-color="#0d0d12"/>
+              </linearGradient>
+            </defs>
+            <!-- ground shadow -->
+            <ellipse cx="125" cy="160" rx="100" ry="6" fill="rgba(0,0,0,.35)"/>
+            <!-- body -->
+            <rect x="20" y="40" width="200" height="105" rx="18" fill="url(#busGrad)"/>
+            <!-- roof highlight -->
+            <rect x="20" y="40" width="200" height="14" rx="18" fill="rgba(255,255,255,.18)"/>
+            <!-- windshield -->
+            <path d="M30 60 L80 60 L75 95 L30 95 Z" fill="url(#busWindow)"/>
+            <!-- window strip -->
+            <rect x="92" y="62" width="118" height="28" rx="4" fill="url(#busWindow)"/>
+            <!-- window divider lines -->
+            <line x1="125" y1="62" x2="125" y2="90" stroke="#ff3b3b" stroke-width="2"/>
+            <line x1="158" y1="62" x2="158" y2="90" stroke="#ff3b3b" stroke-width="2"/>
+            <!-- headlight -->
+            <circle cx="210" cy="105" r="6" fill="#ffe7a3"/>
+            <circle cx="210" cy="105" r="3" fill="#fff"/>
+            <!-- side trim -->
+            <rect x="20" y="115" width="200" height="3" fill="rgba(0,0,0,.25)"/>
+            <rect x="20" y="120" width="200" height="2" fill="rgba(255,255,255,.18)"/>
+            <!-- wheels -->
+            <circle cx="60" cy="150" r="16" fill="#15151a"/>
+            <circle cx="60" cy="150" r="7" fill="#3a3a42"/>
+            <circle cx="180" cy="150" r="16" fill="#15151a"/>
+            <circle cx="180" cy="150" r="7" fill="#3a3a42"/>
+            <!-- door -->
+            <rect x="40" y="100" width="22" height="40" rx="2" fill="rgba(0,0,0,.18)"/>
+          </svg>
+        </div>
       </div>
     </section>
 
-    <!-- 2 · Passengers card -->
-    <section class="card" id="card-passengers">
-      <div class="card-meta">
-        <span class="badge">Step 2</span>
-        <span class="badge subtle">Riders</span>
-      </div>
-      <h2 class="card-title">Who's riding?</h2>
-
-      <input type="text" id="passenger-name" class="text-input" placeholder="Passenger name" maxlength="40" />
-
-      <div class="pair-row">
-        <select id="passenger-in" class="text-input" aria-label="Boarding stop"></select>
-        <span class="arrow">&rarr;</span>
-        <select id="passenger-out" class="text-input" aria-label="Alighting stop"></select>
+    <!-- "What's new" section -->
+    <section class="whatsnew">
+      <div class="wn-head">
+        <h3>What's new</h3>
+        <a href="#view-history" class="view-link" data-view="history">View <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M9 6l6 6-6 6"/></svg></a>
       </div>
 
-      <button id="add-passenger" class="btn primary block">
-        <span class="plus">+</span> Add Passenger
+      <div class="wn-scroll" id="wn-scroll">
+        <article class="wn-card wn-card-a">
+          <div class="wn-thumb wn-thumb-bus"></div>
+          <div class="wn-text">
+            <h4>Dive into Bus Routes</h4>
+            <p>Amazing fares for great adventures</p>
+            <button class="wn-view">View
+              <svg viewBox="0 0 24 24" width="12" height="12" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M9 6l6 6-6 6"/></svg>
+            </button>
+          </div>
+        </article>
+        <article class="wn-card wn-card-b">
+          <div class="wn-thumb wn-thumb-city"></div>
+          <div class="wn-text">
+            <h4>New Routes Added</h4>
+            <p>Explore the city with curated lines</p>
+            <button class="wn-view">View
+              <svg viewBox="0 0 24 24" width="12" height="12" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M9 6l6 6-6 6"/></svg>
+            </button>
+          </div>
+        </article>
+        <article class="wn-card wn-card-c">
+          <div class="wn-thumb wn-thumb-night"></div>
+          <div class="wn-text">
+            <h4>Night Rides</h4>
+            <p>Safe, on-time, and easy to split</p>
+            <button class="wn-view">View
+              <svg viewBox="0 0 24 24" width="12" height="12" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M9 6l6 6-6 6"/></svg>
+            </button>
+          </div>
+        </article>
+      </div>
+    </section>
+
+    <!-- Hidden trip-state controls used by app.js (kept out of the explore UI,
+         exposed via the avatar menu and the floating FAB) -->
+    <input type="hidden" id="total-fare" value="120" />
+    <input type="hidden" id="new-stop" />
+    <ol id="stops-list" hidden></ol>
+    <input type="hidden" id="passenger-name" />
+    <select id="passenger-in" hidden></select>
+    <select id="passenger-out" hidden></select>
+    <input type="hidden" id="add-passenger" />
+    <ul id="passenger-list" hidden></ul>
+    <div id="results" hidden></div>
+    <button id="add-stop" hidden></button>
+    <button id="share-btn" hidden></button>
+    <button id="qr-btn" hidden></button>
+    <button id="demo-btn" hidden></button>
+    <button id="reset-btn" hidden></button>
+    <span id="api-status" hidden></span>
+
+    <!-- Floating pill bottom nav with red FAB in the centre -->
+    <nav class="bottom-nav" role="tablist" aria-label="Sections">
+      <button class="nav-btn" data-view="split" role="tab" aria-selected="true" aria-label="Home">
+        <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 11l9-8 9 8v9a2 2 0 0 1-2 2h-4v-7H10v7H6a2 2 0 0 1-2-2v-9z"/></svg>
       </button>
-
-      <ul id="passenger-list" class="passenger-list"></ul>
-    </section>
-
-    <!-- 3 · Results card -->
-    <section class="card dark-card" id="card-results">
-      <div class="card-meta">
-        <span class="badge">Step 3</span>
-        <span class="badge subtle">Split</span>
-      </div>
-      <h2 class="card-title">Per-segment breakdown</h2>
-      <div id="results"></div>
-    </section>
-
-    <!-- Actions -->
-    <section class="actions">
-      <button id="share-btn" class="btn primary big block">&#128279; Save &amp; Share Link</button>
-      <div class="action-grid">
-        <button id="qr-btn" class="btn ghost block">&#128241; Show QR</button>
-        <button id="demo-btn" class="btn ghost block">&#10024; Demo</button>
-      </div>
-      <button id="reset-btn" class="btn link block">&#8634; Reset trip</button>
-    </section>
-
-    <p class="footer-note">Made for hackathons &middot; works offline &middot; open source</p>
+      <button class="nav-btn" data-view="results" role="tab" aria-selected="false" aria-label="Fare">
+        <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="6" width="18" height="13" rx="2"/><path d="M7 10h2M11 10h2M15 10h2M7 14h10"/></svg>
+      </button>
+      <button class="nav-fab" data-view="results" aria-label="Split now">
+        <svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="white" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="6" width="18" height="12" rx="3"/><path d="M3 10h18M7 15h4"/></svg>
+      </button>
+      <button class="nav-btn" data-view="history" role="tab" aria-selected="false" aria-label="Trips">
+        <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="4" y="5" width="16" height="15" rx="2"/><path d="M8 3v4M16 3v4M4 10h16"/></svg>
+      </button>
+      <button class="nav-btn" data-view="about" role="tab" aria-selected="false" aria-label="About">
+        <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><path d="M12 16v-4M12 8h.01"/></svg>
+      </button>
+    </nav>
   </main>
 
-  <!-- View: History -->
-  <main id="view-history" class="view">
-    <section class="hero">
-      <p class="eyebrow">My Trips</p>
-      <h1 class="hero-title">Saved <span>locally.</span></h1>
-    </section>
-    <ul id="history-list" class="history-list"></ul>
+  <!-- =================================================================
+       VIEW 2 — RESULTS (My Bookings style, the second phone in the reference)
+       ================================================================= -->
+  <main id="view-results" class="view bookings-view">
+    <header class="bk-header">
+      <button class="round-icon" data-view="split" aria-label="Back">
+        <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M15 6l-6 6 6 6"/></svg>
+      </button>
+      <h2 class="bk-title">My Bookings</h2>
+      <button class="round-icon" aria-label="Notifications">
+        <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M6 8a6 6 0 1 1 12 0c0 7 3 7 3 9H3c0-2 3-2 3-9z"/><path d="M10 21a2 2 0 0 0 4 0"/></svg>
+      </button>
+    </header>
+
+    <p class="bk-eyebrow">Fare Split</p>
+    <h1 class="bk-h1">Your share is <span>₹0.00</span></h1>
+
+    <!-- Bookings tabs (Deals / Details / Reviews) -->
+    <nav class="bk-tabs" role="tablist">
+      <button class="bk-tab active">3 Deals</button>
+      <button class="bk-tab">Details</button>
+      <button class="bk-tab">Reviews</button>
+    </nav>
+
+    <!-- The bookings list is driven by app.js #results -->
+    <div id="results-visible" class="bk-list"></div>
+
+    <!-- "Book Now" red action bar -->
+    <div class="bk-action">
+      <div class="bk-action-left">
+        <div class="bk-avatar-row">
+          <div class="bk-avatar"></div>
+          <div class="bk-avatar alt"></div>
+        </div>
+        <div>
+          <p class="bk-action-label">2 Deals left</p>
+          <p class="bk-action-price" id="bk-action-price">$0.00</p>
+        </div>
+      </div>
+      <button class="bk-booknow" id="bk-booknow">Book Now</button>
+    </div>
+
     <p class="footer-note">Trips are saved on this device only.</p>
   </main>
 
-  <!-- View: About -->
+  <!-- =================================================================
+       VIEW 3 — HISTORY
+       ================================================================= -->
+  <main id="view-history" class="view">
+    <header class="bk-header">
+      <button class="round-icon" data-view="split" aria-label="Back">
+        <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M15 6l-6 6 6 6"/></svg>
+      </button>
+      <h2 class="bk-title">Saved Trips</h2>
+      <button class="round-icon" aria-label="Add"></button>
+    </header>
+
+    <p class="bk-eyebrow">My Trips</p>
+    <h1 class="bk-h1">Trips <span>saved locally.</span></h1>
+
+    <ul id="history-list" class="bk-list"></ul>
+    <p class="footer-note">Trips are stored on this device only.</p>
+  </main>
+
+  <!-- =================================================================
+       VIEW 4 — ABOUT
+       ================================================================= -->
   <main id="view-about" class="view">
-    <section class="hero">
-      <p class="eyebrow">About</p>
-      <h1 class="hero-title">Built for <span>exact cents.</span></h1>
-    </section>
-    <section class="card">
-      <p class="lede">Splits a bus fare based on the segments each passenger actually rode &mdash; with exact rounding so shares add up to the total, every cent accounted for.</p>
+    <header class="bk-header">
+      <button class="round-icon" data-view="split" aria-label="Back">
+        <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M15 6l-6 6 6 6"/></svg>
+      </button>
+      <h2 class="bk-title">About</h2>
+      <button class="round-icon" aria-label="Settings"></button>
+    </header>
+
+    <p class="bk-eyebrow">About</p>
+    <h1 class="bk-h1">Built for <span>exact cents.</span></h1>
+
+    <article class="bk-card">
+      <p class="lede">Splits a bus fare based on the segments each passenger actually rode — with exact rounding so shares add up to the total, every cent accounted for.</p>
       <ul class="features">
         <li><span class="check">&#10003;</span> Ordered stops, custom route</li>
         <li><span class="check">&#10003;</span> Per-passenger board &amp; alight</li>
@@ -139,23 +307,12 @@
       </ul>
       <a href="tests.html" class="btn primary block">&#10004; Run tests</a>
       <a href="source.html" class="btn ghost block">View source code</a>
-    </section>
+    </article>
   </main>
 
-  <!-- Bottom Nav (floating pill) -->
-  <nav class="bottom-nav" role="tablist" aria-label="Sections">
-    <button class="nav-btn active" data-view="split" role="tab" aria-selected="true">
-      <span class="nav-ico">&#129518;</span>
-    </button>
-    <button class="nav-fab" data-view="results" role="tab" aria-selected="false" aria-label="Split now">
-      <span class="nav-ico">&#8377;</span>
-    </button>
-    <button class="nav-btn" data-view="history" role="tab" aria-selected="false">
-      <span class="nav-ico">&#128453;</span>
-    </button>
-  </nav>
-
-  <!-- QR Modal -->
+  <!-- =================================================================
+       QR Modal (still reachable from the avatar menu)
+       ================================================================= -->
   <div id="qr-modal" class="modal hidden" role="dialog" aria-modal="true" aria-labelledby="qr-title">
     <div class="modal-card">
       <button class="modal-close" id="qr-close" aria-label="Close">&times;</button>

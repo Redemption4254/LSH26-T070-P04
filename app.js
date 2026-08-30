@@ -80,6 +80,213 @@ async function init() {
 }
 
 // ---------- Events ----------
+// Action sheet that lets the user add stops, add riders, share, demo, reset.
+let _sheetStep = 'route';
+function openMenuSheet(step) {
+  if (step) _sheetStep = step;
+  closeSheet();
+  const overlay = document.createElement('div');
+  overlay.id = 'menu-sheet';
+  overlay.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,.7);backdrop-filter:blur(6px);z-index:120;display:flex;align-items:flex-end;justify-content:center;';
+  overlay.addEventListener('click', (e) => { if (e.target === overlay) closeSheet(); });
+
+  const card = document.createElement('div');
+  card.style.cssText = 'background:var(--card);border:1px solid var(--line);border-radius:24px 24px 0 0;padding:1.25rem 1.2rem calc(1.5rem + env(safe-area-inset-bottom));width:100%;max-width:560px;animation:sheetUp .25s ease-out;';
+  card.innerHTML = `
+    <style>#menu-sheet .handle{display:block;width:42px;height:4px;background:var(--line);border-radius:2px;margin:0 auto 1rem;}
+    #menu-sheet h3{margin:0 0 .25rem;font-size:1.15rem;font-weight:700;}
+    #menu-sheet .sub{margin:0 0 1rem;color:var(--muted);font-size:.85rem;}
+    #menu-sheet .row{display:flex;gap:.5rem;align-items:center;margin-bottom:.6rem;}
+    #menu-sheet input{flex:1;background:var(--card-2);border:1px solid var(--line);color:var(--text);padding:.7rem .9rem;border-radius:14px;font:inherit;font-size:.95rem;outline:none;min-height:44px;}
+    #menu-sheet select{flex:1;background:var(--card-2);border:1px solid var(--line);color:var(--text);padding:.7rem .9rem;border-radius:14px;font:inherit;font-size:.95rem;outline:none;min-height:44px;appearance:none;}
+    #menu-sheet .add-btn{width:44px;height:44px;border-radius:50%;background:var(--primary);color:#fff;border:none;font-size:1.2rem;font-weight:600;cursor:pointer;flex-shrink:0;}
+    #menu-sheet .stops-mini{list-style:none;padding:0;margin:0 0 1rem;max-height:140px;overflow-y:auto;}
+    #menu-sheet .stops-mini li{display:flex;justify-content:space-between;align-items:center;padding:.55rem .8rem;background:var(--card-2);border-radius:12px;margin-bottom:.35rem;font-size:.9rem;}
+    #menu-sheet .stops-mini button{background:transparent;border:none;color:var(--muted);cursor:pointer;font-size:1rem;padding:.2rem .5rem;}
+    #menu-sheet .actions{display:flex;gap:.5rem;margin-top:1rem;}
+    #menu-sheet .act{flex:1;background:var(--card-2);border:1px solid var(--line);color:var(--text);padding:.7rem .9rem;border-radius:999px;font:inherit;font-weight:600;font-size:.9rem;cursor:pointer;}
+    #menu-sheet .act.red{background:var(--primary);border-color:var(--primary);color:#fff;}
+    @keyframes sheetUp{from{transform:translateY(40px);opacity:0;}to{transform:none;opacity:1;}}</style>
+    <span class="handle"></span>
+    <div id="sheet-body"></div>
+  `;
+
+  const body = card.querySelector('#sheet-body');
+
+  if (_sheetStep === 'route') {
+    body.innerHTML = `
+      <h3>Stops &amp; fare</h3>
+      <p class="sub">Add the stops in order, then set the total fare.</p>
+      <ul class="stops-mini" id="sheet-stops"></ul>
+      <div class="row">
+        <input id="sheet-new-stop" placeholder="Add a stop…" maxlength="60" />
+        <button class="add-btn" id="sheet-add-stop" aria-label="Add stop">+</button>
+      </div>
+      <div class="row">
+        <span style="color:var(--muted);font-weight:600;">Total fare ₹</span>
+        <input id="sheet-fare" type="number" min="0" step="0.01" inputmode="decimal" />
+      </div>
+      <div class="actions">
+        <button class="act" id="sheet-demo">Load demo</button>
+        <button class="act red" id="sheet-next">Next: Riders →</button>
+      </div>
+    `;
+    const list = body.querySelector('#sheet-stops');
+    state.stops.forEach((s, i) => {
+      const li = document.createElement('li');
+      li.innerHTML = `<span>${i + 1}. ${escapeHtml(s)}</span>`;
+      const x = document.createElement('button');
+      x.textContent = '✕';
+      x.setAttribute('aria-label', 'Remove ' + s);
+      x.addEventListener('click', () => { removeStop(i); renderSheetStops(); });
+      li.appendChild(x);
+      list.appendChild(li);
+    });
+    const newIn = body.querySelector('#sheet-new-stop');
+    const addBtn = body.querySelector('#sheet-add-stop');
+    const fareIn = body.querySelector('#sheet-fare');
+    fareIn.value = state.totalFare;
+    const addStopFn = () => {
+      $('new-stop').value = newIn.value;
+      addStop();
+      newIn.value = '';
+      renderSheetStops();
+    };
+    addBtn.addEventListener('click', addStopFn);
+    newIn.addEventListener('keydown', (e) => { if (e.key === 'Enter') { e.preventDefault(); addStopFn(); } });
+    fareIn.addEventListener('input', () => { $('total-fare').value = fareIn.value; $('total-fare').dispatchEvent(new Event('input')); });
+    body.querySelector('#sheet-demo').addEventListener('click', () => { closeSheet(); loadDemoTrip(); });
+    body.querySelector('#sheet-next').addEventListener('click', () => { _sheetStep = 'passengers'; openMenuSheet(); });
+  } else if (_sheetStep === 'passengers') {
+    body.innerHTML = `
+      <h3>Who's riding?</h3>
+      <p class="sub">Add each passenger's board &amp; alight stops.</p>
+      <ul class="stops-mini" id="sheet-passengers" style="margin-bottom:1rem;"></ul>
+      <div class="row"><input id="sheet-pname" placeholder="Passenger name" maxlength="40" /></div>
+      <div class="row">
+        <select id="sheet-pin"></select>
+        <span style="color:var(--muted);">→</span>
+        <select id="sheet-pout"></select>
+      </div>
+      <div class="actions">
+        <button class="act" id="sheet-back">← Stops</button>
+        <button class="act red" id="sheet-add-pax">+ Add Passenger</button>
+      </div>
+      <div class="actions">
+        <button class="act" id="sheet-share" style="flex:2;">Save &amp; Share Link</button>
+      </div>
+    `;
+    const inSel = body.querySelector('#sheet-pin');
+    const outSel = body.querySelector('#sheet-pout');
+    state.stops.forEach((s, i) => {
+      inSel.innerHTML += `<option value="${escapeHtml(s)}">${i + 1}. ${escapeHtml(s)}</option>`;
+      outSel.innerHTML += `<option value="${escapeHtml(s)}">${i + 1}. ${escapeHtml(s)}</option>`;
+    });
+    if (outSel.options.length) outSel.selectedIndex = Math.min(outSel.options.length - 1, 1);
+
+    const list = body.querySelector('#sheet-passengers');
+    state.passengers.forEach((p) => {
+      const li = document.createElement('li');
+      li.innerHTML = `<span><strong>${escapeHtml(p.name)}</strong> · ${escapeHtml(p.inStop)} → ${escapeHtml(p.outStop)}</span>`;
+      const x = document.createElement('button');
+      x.textContent = '✕';
+      x.addEventListener('click', () => { removePassenger(p.id); list.removeChild(li); });
+      li.appendChild(x);
+      list.appendChild(li);
+    });
+
+    const addPax = () => {
+      $('passenger-name').value = body.querySelector('#sheet-pname').value;
+      $('passenger-in').value = inSel.value;
+      $('passenger-out').value = outSel.value;
+      const ok = addPassenger();
+      if (ok !== false) {
+        body.querySelector('#sheet-pname').value = '';
+        renderResults();
+      }
+    };
+    body.querySelector('#sheet-add-pax').addEventListener('click', addPax);
+    body.querySelector('#sheet-back').addEventListener('click', () => { _sheetStep = 'route'; openMenuSheet(); });
+    body.querySelector('#sheet-share').addEventListener('click', () => { closeSheet(); shareTrip(); });
+  } else if (_sheetStep === 'results') {
+    body.innerHTML = `
+      <h3>Split the fare</h3>
+      <p class="sub">Review the math, then share with everyone.</p>
+      <div class="actions">
+        <button class="act" id="sheet-demo">Load demo</button>
+        <button class="act" id="sheet-qr">Show QR</button>
+        <button class="act red" id="sheet-share">Save &amp; Share</button>
+      </div>
+      <div class="actions">
+        <button class="act" id="sheet-reset">Reset trip</button>
+      </div>
+    `;
+    body.querySelector('#sheet-demo').addEventListener('click', () => { closeSheet(); loadDemoTrip(); });
+    body.querySelector('#sheet-qr').addEventListener('click', () => { closeSheet(); showQR(); });
+    body.querySelector('#sheet-share').addEventListener('click', () => { closeSheet(); shareTrip(); });
+    body.querySelector('#sheet-reset').addEventListener('click', () => { closeSheet(); resetTrip(); });
+  } else {
+    body.innerHTML = `
+      <h3>Quick actions</h3>
+      <p class="sub">Build your trip, then share.</p>
+      <div class="actions">
+        <button class="act" id="sheet-demo">Load demo trip</button>
+        <button class="act red" id="sheet-share">Save &amp; Share</button>
+      </div>
+      <div class="actions">
+        <button class="act" id="sheet-qr">Show QR</button>
+        <button class="act" id="sheet-reset">Reset trip</button>
+      </div>
+    `;
+    body.querySelector('#sheet-demo').addEventListener('click', () => { closeSheet(); loadDemoTrip(); });
+    body.querySelector('#sheet-share').addEventListener('click', () => { closeSheet(); shareTrip(); });
+    body.querySelector('#sheet-qr').addEventListener('click', () => { closeSheet(); showQR(); });
+    body.querySelector('#sheet-reset').addEventListener('click', () => { closeSheet(); resetTrip(); });
+  }
+
+  overlay.appendChild(card);
+  document.body.appendChild(overlay);
+  document.body.style.overflow = 'hidden';
+}
+
+function renderSheetStops() {
+  const list = document.getElementById('sheet-stops');
+  if (!list) return;
+  list.innerHTML = '';
+  state.stops.forEach((s, i) => {
+    const li = document.createElement('li');
+    li.innerHTML = `<span>${i + 1}. ${escapeHtml(s)}</span>`;
+    const x = document.createElement('button');
+    x.textContent = '✕';
+    x.addEventListener('click', () => { removeStop(i); renderSheetStops(); });
+    li.appendChild(x);
+    list.appendChild(li);
+  });
+  // Sync the in/out selects in the open passenger sheet, if any
+  const inSel = document.getElementById('sheet-pin');
+  const outSel = document.getElementById('sheet-pout');
+  if (inSel && outSel) {
+    const prevIn = inSel.value, prevOut = outSel.value;
+    inSel.innerHTML = ''; outSel.innerHTML = '';
+    state.stops.forEach((s, i) => {
+      inSel.innerHTML += `<option value="${escapeHtml(s)}">${i + 1}. ${escapeHtml(s)}</option>`;
+      outSel.innerHTML += `<option value="${escapeHtml(s)}">${i + 1}. ${escapeHtml(s)}</option>`;
+    });
+    if ([...inSel.options].some((o) => o.value === prevIn)) inSel.value = prevIn;
+    if ([...outSel.options].some((o) => o.value === prevOut)) outSel.value = prevOut;
+  }
+}
+
+function closeSheet() {
+  const existing = document.getElementById('menu-sheet');
+  if (existing) existing.remove();
+  document.body.style.overflow = '';
+}
+
+function escapeHtml(s) {
+  return String(s ?? '').replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+}
+
 function wireEvents() {
   $('total-fare').addEventListener('input', (e) => {
     let v = parseFloat(e.target.value);
@@ -100,28 +307,26 @@ function wireEvents() {
   $('passenger-name').addEventListener('input', (e) => { e.target.value = e.target.value.slice(0, LIMITS.MAX_NAME_LEN); });
 
   $('theme-toggle').addEventListener('click', toggleTheme);
-  $('menu-btn').addEventListener('click', () => switchView('about'));
+  $('menu-btn').addEventListener('click', openMenuSheet);
+  $('cam-btn')?.addEventListener('click', openMenuSheet);
 
-  // Pill tabs scroll to the matching card and highlight it briefly
-  document.querySelectorAll('.pill-tab').forEach((tab) => {
+  // Category tabs open the quick-config sheet for that step
+  document.querySelectorAll('.cat-tab').forEach((tab) => {
     tab.addEventListener('click', () => {
-      document.querySelectorAll('.pill-tab').forEach((t) => t.classList.remove('active'));
+      document.querySelectorAll('.cat-tab').forEach((t) => t.classList.remove('active'));
       tab.classList.add('active');
-      const step = tab.dataset.step;
-      const idMap = { route: 'card-route', passengers: 'card-passengers', results: 'card-results' };
-      const target = idMap[step] ? document.getElementById(idMap[step]) : null;
-      if (target) {
-        target.scrollIntoView({ behavior: 'smooth', block: 'start' });
-        target.style.transition = 'box-shadow .2s, border-color .2s';
-        target.style.boxShadow = '0 0 0 3px rgba(255,46,46,.35)';
-        target.style.borderColor = 'var(--primary)';
-        setTimeout(() => {
-          target.style.boxShadow = '';
-          target.style.borderColor = '';
-        }, 900);
-      }
+      openMenuSheet(tab.dataset.step);
     });
   });
+
+  // "View" link in the What's-new section opens the History page
+  document.querySelectorAll('.view-link[data-view]').forEach((el) => {
+    el.addEventListener('click', (e) => {
+      e.preventDefault();
+      switchView(el.dataset.view);
+    });
+  });
+
   $('share-btn').addEventListener('click', shareTrip);
   $('qr-btn').addEventListener('click', showQR);
   $('reset-btn').addEventListener('click', resetTrip);
@@ -129,7 +334,8 @@ function wireEvents() {
   $('qr-close').addEventListener('click', closeQR);
   $('qr-modal').addEventListener('click', (e) => { if (e.target.id === 'qr-modal') closeQR(); });
   $('qr-copy').addEventListener('click', copyLink);
-  document.addEventListener('keydown', (e) => { if (e.key === 'Escape') closeQR(); });
+  $('bk-booknow')?.addEventListener('click', shareTrip);
+  document.addEventListener('keydown', (e) => { if (e.key === 'Escape') { closeSheet(); closeQR(); } });
   document.querySelectorAll('.nav-btn, .nav-fab').forEach((b) => {
     b.addEventListener('click', () => switchView(b.dataset.view));
   });
@@ -147,11 +353,7 @@ function applyTheme(theme) {
   const dark = theme === 'dark';
   document.body.classList.toggle('dark', dark);
   document.body.classList.toggle('light', !dark);
-  const btn = $('theme-toggle');
-  if (btn) {
-    btn.textContent = dark ? '☀️' : '🌙';
-    btn.setAttribute('aria-label', dark ? 'Switch to light mode' : 'Switch to dark mode');
-  }
+  // The new avatar is always rendered as a photo — keep it untouched.
 }
 function toggleTheme() {
   const next = document.body.classList.contains('dark') ? 'light' : 'dark';
@@ -309,22 +511,23 @@ function renderPassengers() {
 }
 
 function addPassenger() {
-  if (state.passengers.length >= LIMITS.MAX_PASSENGERS) { toast(`Max ${LIMITS.MAX_PASSENGERS} passengers`); return; }
+  if (state.passengers.length >= LIMITS.MAX_PASSENGERS) { toast(`Max ${LIMITS.MAX_PASSENGERS} passengers`); return false; }
   const name = clampStr($('passenger-name').value, LIMITS.MAX_NAME_LEN);
   const inStop = $('passenger-in').value;
   const outStop = $('passenger-out').value;
-  if (!name) { toast('Enter a passenger name'); return; }
-  if (!inStop || !outStop) { toast('Pick board & alight stops'); return; }
-  if (inStop === outStop) { toast('Boarding & alighting must differ'); return; }
+  if (!name) { toast('Enter a passenger name'); return false; }
+  if (!inStop || !outStop) { toast('Pick board & alight stops'); return false; }
+  if (inStop === outStop) { toast('Boarding & alighting must differ'); return false; }
   const inIdx = state.stops.indexOf(inStop);
   const outIdx = state.stops.indexOf(outStop);
-  if (inIdx === -1 || outIdx === -1) return;
-  if (outIdx <= inIdx) { toast('Alighting must come after boarding'); return; }
+  if (inIdx === -1 || outIdx === -1) return false;
+  if (outIdx <= inIdx) { toast('Alighting must come after boarding'); return false; }
   state.passengers.push({ id: nextId++, name, inStop, outStop });
   $('passenger-name').value = '';
   renderPassengers();
   scheduleResultsRender();
   announcement(`Passenger ${name} added`);
+  return true;
 }
 
 function removePassenger(id) {
@@ -374,49 +577,25 @@ const FareMath = {
 // Expose for ad-hoc tests in DevTools
 window.FareMath = FareMath;
 
-// ---------- Results rendering ----------
+// ---------- Results rendering (Bookings style) ----------
 function renderResults() {
-  const container = $('results');
+  const container = $('results-visible');
+  if (!container) return;
   container.innerHTML = '';
 
-  // ----- Segment costs -----
-  const segWrap = document.createElement('div');
-  segWrap.id = 'segment-costs';
-  const h3 = document.createElement('h3');
-  h3.textContent = 'Segment costs';
-  segWrap.appendChild(h3);
-
   const segCosts = FareMath.segmentCosts(state.stops, state.totalFare);
-  if (segCosts.length === 0) {
-    const p = document.createElement('p');
-    p.className = 'empty';
-    p.textContent = 'Add at least 2 stops to define segments.';
-    segWrap.appendChild(p);
-  } else {
-    const ol = document.createElement('ol');
-    state.stops.forEach((s, i) => {
-      if (i === state.stops.length - 1) return;
-      const li = document.createElement('li');
-      li.textContent = `${s} → ${state.stops[i + 1]} : ${fmtMoney(segCosts[i])}`;
-      ol.appendChild(li);
-    });
-    segWrap.appendChild(ol);
 
-    const sum = segCosts.reduce((a, b) => a + b, 0);
-    const ok = Math.abs(sum - state.totalFare) < 0.005;
-    const note = document.createElement('p');
-    note.className = 'hint';
-    note.textContent = `Sum of segments: ${fmtMoney(sum)} — matches total ${fmtMoney(state.totalFare)} ${ok ? '✓' : '✗'}`;
-    segWrap.appendChild(note);
-  }
-  container.appendChild(segWrap);
-
-  // ----- Passenger shares -----
+  // Empty state
   if (state.passengers.length === 0) {
-    const p = document.createElement('p');
-    p.className = 'empty';
-    p.textContent = 'Add passengers to see per-person shares.';
-    container.appendChild(p);
+    const empty = document.createElement('div');
+    empty.style.padding = '1.5rem 0.5rem';
+    empty.style.textAlign = 'center';
+    empty.style.color = 'var(--muted)';
+    empty.innerHTML = `<p style="margin:0 0 .8rem; font-size:1rem;">No passengers yet</p>
+      <p style="margin:0; font-size:.85rem;">Tap the menu icon (top-left) or the camera button to add stops and riders.</p>`;
+    container.appendChild(empty);
+    updateBookingsHeader(0, 0);
+    updateBookNowBar(0);
     return;
   }
 
@@ -424,64 +603,75 @@ function renderResults() {
     state.passengers, segCosts, state.totalFare, state.stops
   );
 
-  const table = document.createElement('table');
-  table.className = 'results-table';
+  // Header summary
+  updateBookingsHeader(shares.reduce((a, b) => a + b, 0), state.passengers.length);
 
-  // Accessibility: caption + colgroup + scope
-  const caption = document.createElement('caption');
-  caption.textContent = 'Each passenger’s share of the fare';
-  caption.style.position = 'absolute';
-  caption.style.left = '-9999px';
-  table.appendChild(caption);
-
-  const thead = document.createElement('thead');
-  const trh = document.createElement('tr');
-  ['Passenger', 'Route', 'Share'].forEach((t) => {
-    const th = document.createElement('th');
-    th.scope = 'col';
-    th.textContent = t;
-    trh.appendChild(th);
-  });
-  thead.appendChild(trh);
-  table.appendChild(thead);
-
-  const tbody = document.createElement('tbody');
   state.passengers.forEach((p, idx) => {
     const segs = segsByP[idx] || [];
-    const names = segs.map((k) => `${state.stops[k]}→${state.stops[k + 1]}`);
-    const tr = document.createElement('tr');
-    if (idx === absorber) tr.classList.add('absorber');
-    const vals = [
-      p.name + (idx === absorber ? ' ⭐' : ''),
-      names.length ? `${segs.length} segment${segs.length === 1 ? '' : 's'}` : '—',
-      fmtMoney(shares[idx])
-    ];
-    vals.forEach((v, i) => {
-      const td = document.createElement('td');
-      td.textContent = v;
-      tr.appendChild(td);
-    });
-    tbody.appendChild(tr);
-  });
-  table.appendChild(tbody);
-  container.appendChild(table);
+    const routeText = segs.length
+      ? `${state.stops[segs[0]]} → ${state.stops[segs[segs.length - 1] + 1]}`
+      : '—';
 
-  const totalShown = shares.reduce((a, b) => a + b, 0);
-  const exact = Math.abs(totalShown - state.totalFare) < 0.005;
-  const summary = document.createElement('div');
-  summary.className = 'summary';
-  summary.innerHTML =
-    `<strong>Total of shares:</strong> ${fmtMoney(totalShown)}` +
-    ` &nbsp;|&nbsp; <strong>Total fare:</strong> ${fmtMoney(state.totalFare)}` +
-    ` &nbsp;|&nbsp; <strong>${exact ? 'Exact ✓' : 'Mismatch ✗'}</strong>` +
-    (absorber !== null ? `<br/><strong>Rounding:</strong> remainder absorbed by <em>${state.passengers[absorber].name}</em>.` : '');
-  container.appendChild(summary);
+    const li = document.createElement('div');
+    li.className = 'bk-row';
+
+    const thumb = document.createElement('div');
+    const tclasses = ['bk-thumb-red', 'bk-thumb-blue', 'bk-thumb-dark'];
+    thumb.className = 'bk-thumb ' + tclasses[idx % tclasses.length];
+    thumb.setAttribute('aria-hidden', 'true');
+
+    const info = document.createElement('div');
+    info.className = 'bk-info';
+    const h4 = document.createElement('h4');
+    h4.textContent = p.name + (idx === absorber ? ' ⭐' : '');
+    const meta = document.createElement('p');
+    meta.innerHTML = `<span class="bk-stars">${'★'.repeat(Math.max(3, 5 - segs.length))}${'☆'.repeat(Math.max(0, 5 - Math.max(3, 5 - segs.length)))}</span> &nbsp; ${routeText} · ${segs.length} segment${segs.length === 1 ? '' : 's'}`;
+    info.appendChild(h4);
+    info.appendChild(meta);
+
+    const priceBlock = document.createElement('div');
+    priceBlock.className = 'bk-price-block';
+    const price = document.createElement('span');
+    price.className = 'price';
+    price.textContent = fmtMoney(shares[idx]).replace('₹ ', '$');
+    const sub = document.createElement('span');
+    sub.className = 'sub';
+    sub.textContent = `Per People`;
+    priceBlock.appendChild(price);
+    priceBlock.appendChild(sub);
+
+    const arrow = document.createElement('div');
+    arrow.className = 'bk-arrow';
+    arrow.innerHTML = `<svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 6l6 6-6 6"/></svg>`;
+
+    li.appendChild(thumb);
+    li.appendChild(info);
+    li.appendChild(priceBlock);
+    li.appendChild(arrow);
+    container.appendChild(li);
+  });
+
+  updateBookNowBar(shares.reduce((a, b) => a + b, 0));
 
   // Announce the total so screen readers pick it up
+  const totalShown = shares.reduce((a, b) => a + b, 0);
   announcement(
     `Total ${fmtMoney(totalShown)} across ${state.passengers.length} passenger${state.passengers.length === 1 ? '' : 's'}` +
     (absorber !== null ? `. Remainder absorbed by ${state.passengers[absorber].name}.` : '')
   );
+}
+
+function updateBookingsHeader(total, count) {
+  const h1 = document.querySelector('.bookings-view .bk-h1 span');
+  if (h1) h1.textContent = fmtMoney(total || 0).replace('₹ ', '₹');
+  const tabs = document.querySelectorAll('.bookings-view .bk-tab');
+  if (tabs[0]) tabs[0].textContent = `${count} Deal${count === 1 ? '' : 's'}`;
+}
+function updateBookNowBar(total) {
+  const el = $('bk-action-price');
+  if (el) el.textContent = fmtMoney(total || 0).replace('₹ ', '$');
+  const label = document.querySelector('.bookings-view .bk-action-label');
+  if (label) label.textContent = `${state.passengers.length || 0} Deal${state.passengers.length === 1 ? '' : 's'} left`;
 }
 
 // Debounced render for text-input-driven re-renders
