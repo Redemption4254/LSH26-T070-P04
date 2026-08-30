@@ -38,9 +38,9 @@ function clampStr(v, max) {
 }
 
 function fmtMoney(n) {
-  // Locale-aware, 2 decimal places, never shows "-0".
+  // Locale-aware, 2 decimal places, never shows "-0". Currency: Bangladeshi Taka (৳).
   const v = (Math.round(n * 100) / 100);
-  return `₹ ${v.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+  return `\u09F3 ${v.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
 }
 
 const announcement = (() => {
@@ -123,7 +123,7 @@ function openMenuSheet(step) {
         <button class="add-btn" id="sheet-add-stop" aria-label="Add stop">+</button>
       </div>
       <div class="row">
-        <span style="color:var(--muted);font-weight:600;">Total fare ₹</span>
+        <span style="color:var(--muted);font-weight:600;">Total fare ৳</span>
         <input id="sheet-fare" type="number" min="0" step="0.01" inputmode="decimal" />
       </div>
       <div class="actions">
@@ -319,8 +319,14 @@ function wireEvents() {
     });
   });
 
-  // "View" link in the What's-new section opens the History page
-  document.querySelectorAll('.view-link[data-view]').forEach((el) => {
+  // Generic "switch view" wiring for any element carrying [data-view].
+  // Covers .view-link (What's-new link), .round-icon[data-view] (back arrows
+  // on results / history / about), and the rail-link / nav-btn / nav-fab
+  // selectors below remain for their side-effects.
+  document.querySelectorAll('[data-view]').forEach((el) => {
+    if (el.classList.contains('nav-btn') ||
+        el.classList.contains('nav-fab') ||
+        el.classList.contains('rail-link')) return; // wired separately
     el.addEventListener('click', (e) => {
       e.preventDefault();
       switchView(el.dataset.view);
@@ -347,6 +353,38 @@ function wireEvents() {
   });
   // Summary pane Share button
   $('sum-share')?.addEventListener('click', shareTrip);
+
+  // Bell + inactive round-icons → small toasts so they feel alive.
+  $('bell-btn')?.addEventListener('click', () => toast('No new notifications'));
+  // Triple-chevron "next" pill jumps to the next step sheet.
+  $('ghost-next')?.addEventListener('click', () => {
+    const order = ['route', 'passengers', 'results'];
+    const i = order.indexOf(_sheetStep);
+    openMenuSheet(order[(i + 1) % order.length]);
+  });
+  // The "View" cards on the What's-new rail map to the matching sheet step.
+  document.querySelectorAll('.wn-view').forEach((b, i) => {
+    b.addEventListener('click', () => {
+      const step = ['route', 'passengers', 'results'][i] || 'route';
+      openMenuSheet(step);
+    });
+  });
+  // The "+" buttons on the history / about headers open the demo flow.
+  document.querySelectorAll('.bk-header .round-icon:not([data-view])').forEach((b) => {
+    b.addEventListener('click', () => {
+      if (state.view === 'history') { toast('Open a saved trip from the list below'); return; }
+      if (state.view === 'about')   { loadDemoTrip(); return; }
+      toast('Tap a stop or rider to get started');
+    });
+  });
+  // Map pin on the location pill: pretend we picked up a city.
+  document.querySelector('.loc-pin')?.addEventListener('click', () => {
+    const cities = ['Dhaka, BD', 'Chittagong, BD', 'Sylhet, BD', 'Khulna, BD'];
+    const cur = $('loc-city');
+    if (cur) cur.textContent = cities[Math.floor(Math.random() * cities.length)];
+    toast('Location updated · routes refresh');
+  });
+
   // Scroll-reveal observer
   setupReveals();
   // First-paint summary
@@ -650,7 +688,7 @@ function updateSummary() {
                         <div class="rt">${segs.length} segment${segs.length === 1 ? '' : 's'}</div>`;
         const sh = document.createElement('div');
         sh.className = 'sh';
-        sh.textContent = fmtMoney(shares[i] || 0).replace('₹ ', '₹');
+        sh.textContent = fmtMoney(shares[i] || 0).replace(/\u09F3\s/, '\u09F3');
         li.append(av, nm, sh);
         list.appendChild(li);
       });
@@ -751,7 +789,7 @@ function renderResults() {
     priceBlock.className = 'bk-price-block';
     const price = document.createElement('span');
     price.className = 'price';
-    price.textContent = fmtMoney(shares[idx]).replace('₹ ', '$');
+    price.textContent = fmtMoney(shares[idx]).replace(/\u09F3\s/, '\u09F3');
     const sub = document.createElement('span');
     sub.className = 'sub';
     sub.textContent = `Per People`;
@@ -784,13 +822,13 @@ function renderResults() {
 
 function updateBookingsHeader(total, count) {
   const h1 = document.querySelector('.bookings-view .bk-h1 span');
-  if (h1) h1.textContent = fmtMoney(total || 0).replace('₹ ', '₹');
+  if (h1) h1.textContent = fmtMoney(total || 0).replace(/\u09F3\s/, '\u09F3');
   const tabs = document.querySelectorAll('.bookings-view .bk-tab');
   if (tabs[0]) tabs[0].textContent = `${count} Deal${count === 1 ? '' : 's'}`;
 }
 function updateBookNowBar(total) {
   const el = $('bk-action-price');
-  if (el) el.textContent = fmtMoney(total || 0).replace('₹ ', '$');
+  if (el) el.textContent = fmtMoney(total || 0).replace(/\u09F3\s/, '\u09F3');
   const label = document.querySelector('.bookings-view .bk-action-label');
   if (label) label.textContent = `${state.passengers.length || 0} Deal${state.passengers.length === 1 ? '' : 's'} left`;
 }

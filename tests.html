@@ -46,7 +46,7 @@
         <li>Segment costs sum exactly to the total fare</li>
         <li>Passenger shares sum exactly to the total fare (no off-by-one rupee)</li>
         <li>Remainder absorption is visible (one passenger marked)</li>
-        <li>Edge cases: awkward totals (₹100/3), 0 passengers, 2 stops, large fares</li>
+        <li>Edge cases: awkward totals (৳100/3), 0 passengers, 2 stops, large fares</li>
         <li>Input limits &amp; sanitization</li>
       </ul>
     </section>
@@ -83,7 +83,7 @@
       costs.forEach((c) => { if (!approx(c, 40)) throw new Error(`expected 40, got ${c}`); });
     });
 
-    test('segmentCosts handles ₹100 over 3 segments (₹33.33 x 2 + ₹33.34)', () => {
+    test('segmentCosts handles ৳100 over 3 segments (৳33.33 x 2 + ৳33.34)', () => {
       const stops = ['A', 'B', 'C', 'D'];
       const costs = FareMath.segmentCosts(stops, 100);
       const sum = costs.reduce((a, b) => a + b, 0);

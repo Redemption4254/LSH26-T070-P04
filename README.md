@@ -108,17 +108,17 @@ source.html         ← Single-page source dump (no-build view)
 
 ## 🧮 How the math works
 
-The hardest part of splitting fares is **exact rounding**. `₹100 / 3 = 33.33…` — three shares at `33.33` only sum to `99.99`.
+The hardest part of splitting fares is **exact rounding**. `৳100 / 3 = 33.33…` — three shares at `33.33` only sum to `99.99`.
 
 FareSplit works in **integer cents** end-to-end:
 
-1. Convert the total fare to cents: `₹100 → 10000¢`.
+1. Convert the total fare to cents: `৳100 → 10000¢`.
 2. Divide by segment count: `10000 ÷ 3 = 3333` remainder `1`.
 3. Distribute the remainder one-cent-at-a-time to the **first** segments — never hidden, always labeled.
 4. For each passenger, sum the cents for the segments they rode.
 5. Same trick at the passenger level: divide their cents across passengers riding that segment, distribute remainder to first passengers.
 
-The result: **shares always sum exactly to the total fare, to the cent**. Try `₹100 / 3 segments / 3 passengers` — open `tests.html` to verify.
+The result: **shares always sum exactly to the total fare, to the cent**. Try `৳100 / 3 segments / 3 passengers` — open `tests.html` to verify.
 
 ---
 
@@ -137,10 +137,10 @@ Open `tests.html` in any browser. You'll see a green bar with **10 / 10 passing*
 
 The suite covers:
 - segment sum equality
-- awkward rounding (`₹100 / 3 segments`)
+- awkward rounding (`৳100 / 3 segments`)
 - single-segment, empty-stops, no-passenger edge cases
-- property test with `₹333.33 / 5 stops / 4 passengers`
-- extreme fares (`₹0.03` rounding stability)
+- property test with `৳333.33 / 5 stops / 4 passengers`
+- extreme fares (`৳0.03` rounding stability)
 
 ---
 
@@ -149,8 +149,8 @@ The suite covers:
 > *"Splitting a bus fare 3 ways shouldn't mean one person Venmo-requesting and doing math at 11pm. FareSplit does it in real-time: scan a QR, add your stops, see your share — with exact rounding and a visible audit trail. Built as an installable PWA on Vercel Serverless Functions."*
 
 ### Demo script (under 90 seconds)
-1. Open the app → shows default 4-stop route, ₹120
-2. Tap **Load demo** → 3 passengers, ₹100, awkward rounding (the money-shot)
+1. Open the app → shows default 4-stop route, ৳120
+2. Tap **Load demo** → 3 passengers, ৳100, awkward rounding (the money-shot)
 3. Point at the **Segment costs** breakdown — show the visible remainder
 4. Tap **Show QR** → phone-scan the QR on another phone
 5. That phone sees the same trip, fully loaded
