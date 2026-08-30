@@ -569,6 +569,40 @@
     </div>
   </div>
 
+  <!-- Interactive live map (Leaflet) -->
+  <div id="map-modal" class="modal hidden" role="dialog" aria-modal="true" aria-labelledby="map-title">
+    <div class="modal-card map-card">
+      <button class="modal-close" data-close="map-modal" aria-label="Close">&times;</button>
+      <div class="map-header">
+        <div>
+          <h3 id="map-title">Live route</h3>
+          <p class="muted small" id="map-summary">Your trip on a real map.</p>
+        </div>
+        <div class="map-controls">
+          <button class="mc-btn" id="map-recenter" title="Recenter on route" aria-label="Recenter">
+            <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/><path d="M12 2v3M12 19v3M2 12h3M19 12h3"/></svg>
+          </button>
+          <button class="mc-btn" id="map-fit" title="Fit route" aria-label="Fit">
+            <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 9V5h4M20 9V5h-4M4 15v4h4M20 15v4h-4"/></svg>
+          </button>
+          <button class="mc-btn primary" id="map-play" title="Play / pause the live bus" aria-label="Play">
+            <svg id="map-play-icon" viewBox="0 0 24 24" width="16" height="16" fill="currentColor"><path d="M8 5v14l11-7z"/></svg>
+          </button>
+        </div>
+      </div>
+      <div id="leaflet-map" class="leaflet-map" aria-label="Route map"></div>
+      <div class="map-stats" id="map-stats"></div>
+    </div>
+  </div>
+
+  <!-- Leaflet (interactive map) -->
+  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"
+        integrity="sha256-p4NxAoJBhIIN+hmNHrzRCf9tD/miZyoHS5obTRR9BMY="
+        crossorigin="" />
+  <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"
+          integrity="sha256-20nQCchB9co0qIjJZRGuk2/Z9VM+kNiyxNV1lvTlZBo="
+          crossorigin=""></script>
+
   <script src="https://cdn.jsdelivr.net/npm/qrcode-generator@1.4.4/qrcode.min.js"></script>
   <script src="app.js"></script>
 </body>

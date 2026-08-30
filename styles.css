@@ -1357,3 +1357,89 @@ body {
 .scan-hint { font-size: 0.78rem; color: var(--muted); text-align: center; padding: 0 1rem; z-index: 1; }
 .scan-actions { display: flex; gap: 0.5rem; margin-top: 0.5rem; }
 .scan-actions .btn { flex: 1; }
+
+/* ---------- Premium live map ---------- */
+.map-card {
+  display: flex; flex-direction: column; gap: 0.6rem;
+}
+.map-header {
+  display: flex; align-items: center; justify-content: space-between;
+  gap: 0.6rem; flex-wrap: wrap;
+}
+.map-header h3 { margin: 0; font-size: 1.05rem; }
+.map-header .map-sub { color: var(--muted); font-size: 0.82rem; }
+.map-controls { display: flex; gap: 0.4rem; flex-wrap: wrap; }
+.mc-btn {
+  display: inline-flex; align-items: center; gap: 0.4rem;
+  padding: 0.45rem 0.7rem; border-radius: 999px;
+  background: var(--bg-2); color: var(--text);
+  border: 1px solid var(--border); font: inherit; font-size: 0.82rem;
+  cursor: pointer; transition: background 0.15s ease, transform 0.15s ease;
+}
+.mc-btn:hover { background: var(--bg-3); }
+.mc-btn:active { transform: scale(0.97); }
+.mc-btn.primary { background: var(--accent); color: #fff; border-color: var(--accent); }
+.mc-btn svg { width: 14px; height: 14px; fill: currentColor; }
+.leaflet-map {
+  height: 360px; width: 100%;
+  border-radius: 14px; overflow: hidden;
+  border: 1px solid var(--border);
+  background: #0b0d10;
+  box-shadow: 0 12px 32px rgba(0,0,0,0.45);
+}
+@media (min-width: 720px) { .leaflet-map { height: 460px; } }
+.map-stats {
+  display: grid; gap: 0.5rem;
+  grid-template-columns: repeat(2, minmax(0,1fr));
+}
+@media (min-width: 560px) { .map-stats { grid-template-columns: repeat(5, minmax(0,1fr)); } }
+.ms-cell {
+  background: var(--bg-2); border: 1px solid var(--border);
+  border-radius: 12px; padding: 0.55rem 0.7rem;
+  display: flex; flex-direction: column; gap: 0.15rem;
+}
+.ms-cell span { color: var(--muted); font-size: 0.72rem; letter-spacing: 0.04em; text-transform: uppercase; }
+.ms-cell strong { font-size: 1rem; font-variant-numeric: tabular-nums; }
+.ms-total { background: linear-gradient(135deg, rgba(255,45,45,0.16), rgba(255,45,45,0.04)); border-color: rgba(255,45,45,0.35); }
+.fs-marker-wrap { background: transparent; border: 0; }
+.fs-marker {
+  width: 30px; height: 30px; border-radius: 50%;
+  display: flex; align-items: center; justify-content: center;
+  font: 700 0.78rem/1 'Inter', system-ui, sans-serif;
+  color: #fff; box-shadow: 0 4px 12px rgba(0,0,0,0.5);
+  border: 2px solid rgba(255,255,255,0.9);
+  transition: transform 0.2s ease;
+}
+.fs-marker:hover { transform: scale(1.12); }
+.fs-marker--start { background: #19c37d; }
+.fs-marker--mid   { background: #ffffff; color: #111; border-color: rgba(0,0,0,0.2); }
+.fs-marker--end   { background: #ff2d2d; }
+.fs-bus-wrap { background: transparent; border: 0; }
+.fs-bus {
+  width: 38px; height: 38px; border-radius: 50%;
+  display: flex; align-items: center; justify-content: center;
+  font-size: 1.15rem;
+  background: rgba(0,0,0,0.7); color: #fff;
+  border: 2px solid var(--accent);
+  box-shadow: 0 0 0 4px rgba(255,45,45,0.18), 0 6px 16px rgba(0,0,0,0.55);
+  animation: fsBusPulse 1.6s ease-in-out infinite;
+}
+@keyframes fsBusPulse {
+  0%, 100% { box-shadow: 0 0 0 4px rgba(255,45,45,0.18), 0 6px 16px rgba(0,0,0,0.55); }
+  50%      { box-shadow: 0 0 0 10px rgba(255,45,45,0.05), 0 6px 16px rgba(0,0,0,0.55); }
+}
+.fs-tooltip {
+  background: rgba(15,17,20,0.94) !important;
+  color: #fff !important; border: 1px solid var(--border) !important;
+  border-radius: 10px !important;
+  padding: 6px 10px !important;
+  font-size: 0.78rem !important;
+  box-shadow: 0 8px 24px rgba(0,0,0,0.5) !important;
+}
+.fs-tooltip::before { display: none !important; }
+.fs-tip strong { display: block; font-size: 0.85rem; }
+.fs-tip-fare { color: var(--accent); margin-top: 2px; font-variant-numeric: tabular-nums; }
+.fs-route-line { animation: fsRouteFlow 1.2s linear infinite; }
+@keyframes fsRouteFlow { to { stroke-dashoffset: -13; } }
+.leaflet-container { font-family: inherit; }
+.leaflet-control-attribution { font-size: 9px; opacity: 0.7; }

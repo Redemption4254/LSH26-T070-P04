@@ -421,10 +421,10 @@ function wireEvents() {
   });
   // Map pin on the location pill opens the real city picker.
   document.querySelector('.loc-pin')?.addEventListener('click', openCityPicker);
-  // The "Map" ghost pill on the featured card opens the route preview.
+  // The "Map" ghost pill on the featured card opens the premium live map.
   document.querySelectorAll('.ghost-pill').forEach((b) => {
     if ((b.getAttribute('aria-label') || '').toLowerCase().includes('map')) {
-      b.addEventListener('click', openRoutePreview);
+      b.addEventListener('click', openLiveMap);
     }
   });
   // Scanner (camera button) opens the scan-trip flow.
@@ -1704,6 +1704,296 @@ function renderRouteSVG() {
     t.textContent = String(i + 1);
     svg.appendChild(t);
   });
+}
+
+// ============================================================
+// Premium live map (Leaflet)
+// ============================================================
+
+// City centroids used to anchor routes to a real location.
+const CITY_COORDS = {
+  'Dhaka':          [23.8103, 90.4125],
+  'Mumbai':         [19.0760, 72.8777],
+  'Delhi':          [28.6139, 77.2090],
+  'Singapore':      [1.3521, 103.8198],
+  'Bangkok':        [13.7563, 100.5018],
+  'Kuala Lumpur':   [3.1390, 101.6869],
+  'New York':       [40.7128, -74.0060],
+  'London':         [51.5074, -0.1278]
+};
+
+// Curated stop coordinates so common names resolve to realistic
+// locations on the map. Anything not in this table gets a small
+// deterministic offset from the active city centroid.
+const KNOWN_STOPS = {
+  // Dhaka
+  'park street':        [23.7411, 90.3836],
+  'mg road':            [23.7515, 90.3875],
+  'central station':    [23.8260, 90.4140],
+  'airport':            [23.8430, 90.3978],
+  'farmgate':           [23.7561, 90.3872],
+  'gulshan':            [23.7925, 90.4077],
+  'old town':           [23.7167, 90.4078],
+  'mirpur':             [23.8069, 90.3687],
+  'uttara':             [23.8759, 90.3795],
+  'motijheel':          [23.7296, 90.4179],
+  'banani':             [23.7937, 90.4046],
+  'mohammadpur':        [23.7600, 90.3590],
+  'sayedabad':          [23.7100, 90.4100],
+  'gulistan':           [23.7260, 90.4150],
+  'new market':         [23.7334, 90.3853],
+  // Mumbai
+  'colaba':             [18.9067, 72.8147],
+  'andheri':            [19.1136, 72.8697],
+  'bandra':             [19.0544, 72.8402],
+  'cst':                [18.9398, 72.8355],
+  'dadar':              [19.0186, 72.8423],
+  'borivali':           [19.2288, 72.8543],
+  // Delhi
+  'connaught place':    [28.6315, 77.2167],
+  'karol bagh':         [28.6519, 77.1909],
+  'nehru place':        [28.5494, 77.2506],
+  'aiims':              [28.5672, 77.2100],
+  // Singapore
+  'orchard':            [1.3036, 103.8318],
+  'marina bay':         [1.2839, 103.8607],
+  'changi':             [1.3644, 103.9915],
+  'bugis':              [1.3006, 103.8554],
+  // Bangkok
+  'siam':               [13.7458, 100.5341],
+  'sukhumvit':          [13.7308, 100.5685],
+  'silom':              [13.7260, 100.5231],
+  'khao san':           [13.7589, 100.4972],
+  // Kuala Lumpur
+  'klcc':               [3.1578, 101.7117],
+  'bukit bintang':      [3.1488, 101.7137],
+  'kl sentral':         [3.1340, 101.6866],
+  // New York
+  'times square':       [40.7580, -73.9855],
+  'wall street':        [40.7074, -74.0113],
+  'central park':       [40.7829, -73.9654],
+  'brooklyn':           [40.6782, -73.9442],
+  'harlem':             [40.8116, -73.9465],
+  // London
+  'soho':               [51.5136, -0.1365],
+  'camden':             [51.5390, -0.1426],
+  'shoreditch':         [51.5230, -0.0779],
+  'brixton':            [51.4612, -0.1156]
+};
+
+function activeCityCentroid() {
+  const c = (state.city || '').split(',')[0].trim();
+  return CITY_COORDS[c] || CITY_COORDS['Dhaka'];
+}
+
+function stopToCoord(name, idx, total) {
+  const key = String(name).toLowerCase().trim();
+  if (KNOWN_STOPS[key]) return KNOWN_STOPS[key].slice();
+  const [clat, clon] = activeCityCentroid();
+  const t = total <= 1 ? 0.5 : idx / (total - 1);
+  const latOffset = (t - 0.5) * 0.06 + (Math.sin(idx * 1.7) * 0.005);
+  const lonOffset = (t - 0.5) * 0.07 + (Math.cos(idx * 1.3) * 0.005);
+  return [clat + latOffset, clon + lonOffset];
+}
+
+// Module-scoped map state (one map at a time)
+let _map = null;
+let _busMarker = null;
+let _busAnimTimer = null;
+let _busPlaying = false;
+let _busPath = [];
+let _busSegIdx = 0;
+let _busSegT = 0;
+
+function openLiveMap() {
+  if (!state.stops || state.stops.length < 2) {
+    toast('Add at least two stops first');
+    return;
+  }
+  openModal('map-modal');
+  setTimeout(initLeafletMap, 60);
+}
+
+function ensureLeaflet() {
+  if (typeof L === 'undefined') {
+    toast('Map library still loading — try again in a second');
+    return false;
+  }
+  return true;
+}
+
+function initLeafletMap() {
+  if (!ensureLeaflet()) return;
+  const container = $('leaflet-map');
+  if (!container) return;
+
+  if (_map) {
+    try { _map.remove(); } catch (_) {}
+    _map = null;
+  }
+  _busPlaying = false;
+  clearInterval(_busAnimTimer); _busAnimTimer = null;
+
+  _map = L.map(container, {
+    zoomControl: true,
+    attributionControl: true,
+    preferCanvas: true,
+    worldCopyJump: true
+  });
+
+  // Premium dark tile layer (CARTO dark matter)
+  L.tileLayer('https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png', {
+    maxZoom: 19,
+    subdomains: 'abcd',
+    attribution: '© OpenStreetMap · © CARTO'
+  }).addTo(_map);
+
+  const coords = state.stops.map((s, i) => stopToCoord(s, i, state.stops.length));
+  _busPath = coords;
+
+  // Glow + dashed main stroke for a premium look
+  L.polyline(coords, {
+    color: '#ff2d2d', weight: 14, opacity: 0.18,
+    lineCap: 'round', lineJoin: 'round'
+  }).addTo(_map);
+  L.polyline(coords, {
+    color: '#ff2d2d', weight: 4, opacity: 0.95,
+    lineCap: 'round', lineJoin: 'round',
+    dashArray: '1, 12', className: 'fs-route-line'
+  }).addTo(_map);
+
+  function stopMarker(idx, total, fare) {
+    const isFirst = idx === 0;
+    const isLast = idx === total - 1;
+    const cls = isFirst ? 'fs-marker fs-marker--start' :
+                isLast  ? 'fs-marker fs-marker--end' :
+                          'fs-marker fs-marker--mid';
+    const inner = isFirst ? 'A' : isLast ? 'B' : String(idx + 1);
+    const html = '<div class="' + cls + '"><span>' + escapeHtml(inner) + '</span></div>';
+    const icon = L.divIcon({
+      className: 'fs-marker-wrap',
+      html,
+      iconSize: [34, 34],
+      iconAnchor: [17, 17]
+    });
+    const m = L.marker(coords[idx], { icon, riseOnHover: true }).addTo(_map);
+    const fareTxt = fare ? '<div class="fs-tip-fare">' + escapeHtml(fare) + '</div>' : '';
+    m.bindTooltip(
+      '<div class="fs-tip"><strong>' + escapeHtml(state.stops[idx]) + '</strong>' + fareTxt + '</div>',
+      { direction: 'top', offset: [0, -10], opacity: 1, className: 'fs-tooltip' }
+    );
+    return m;
+  }
+
+  const segCosts = FareMath.segmentCosts(state.stops, state.totalFare);
+  state.stops.forEach((s, i) => {
+    const fare = (i < state.stops.length - 1) ? fmtMoney(segCosts[i]) : null;
+    stopMarker(i, state.stops.length, fare);
+  });
+
+  // Live bus marker
+  const busIcon = L.divIcon({
+    className: 'fs-bus-wrap',
+    html: '<div class="fs-bus"><span>🚌</span></div>',
+    iconSize: [40, 40],
+    iconAnchor: [20, 20]
+  });
+  _busMarker = L.marker(coords[0], { icon: busIcon, zIndexOffset: 1000 }).addTo(_map);
+
+  fitRouteBounds();
+  renderMapStats();
+
+  // Auto-play
+  setTimeout(() => playBus(true), 700);
+
+  // Wire controls
+  bind('map-recenter', 'click', () => { if (_map) _map.setView(activeCityCentroid(), 12); });
+  bind('map-fit', 'click', fitRouteBounds);
+  bind('map-play', 'click', () => playBus(!_busPlaying));
+}
+
+function fitRouteBounds() {
+  if (!_map || _busPath.length === 0) return;
+  const b = L.latLngBounds(_busPath);
+  _map.fitBounds(b, { padding: [40, 40], maxZoom: 14 });
+}
+
+function renderMapStats() {
+  const stats = $('map-stats');
+  if (!stats) return;
+  const dist = approxRouteKm(_busPath);
+  const riders = state.passengers.length;
+  const segCount = Math.max(0, state.stops.length - 1);
+  stats.innerHTML =
+    '<div class="ms-cell"><span>Distance</span><strong>' + dist.toFixed(1) + ' km</strong></div>' +
+    '<div class="ms-cell"><span>Stops</span><strong>' + state.stops.length + '</strong></div>' +
+    '<div class="ms-cell"><span>Segments</span><strong>' + segCount + '</strong></div>' +
+    '<div class="ms-cell"><span>Riders</span><strong>' + riders + '</strong></div>' +
+    '<div class="ms-cell ms-total"><span>Total fare</span><strong>' + fmtMoney(state.totalFare) + '</strong></div>';
+}
+
+function approxRouteKm(coords) {
+  let km = 0;
+  for (let i = 1; i < coords.length; i++) km += haversineKm(coords[i - 1], coords[i]);
+  return km;
+}
+function haversineKm(a, b) {
+  const toRad = (d) => d * Math.PI / 180;
+  const R = 6371;
+  const dLat = toRad(b[0] - a[0]);
+  const dLon = toRad(b[1] - a[1]);
+  const lat1 = toRad(a[0]), lat2 = toRad(b[0]);
+  const x = Math.sin(dLat / 2) ** 2 + Math.sin(dLon / 2) ** 2 * Math.cos(lat1) * Math.cos(lat2);
+  return 2 * R * Math.asin(Math.min(1, Math.sqrt(x)));
+}
+
+function playBus(play) {
+  _busPlaying = !!play;
+  const icon = $('map-play-icon');
+  if (icon) {
+    icon.innerHTML = _busPlaying
+      ? '<path d="M6 5h4v14H6zM14 5h4v14h-4z"/>'
+      : '<path d="M8 5v14l11-7z"/>';
+  }
+  if (!_busPlaying) {
+    clearInterval(_busAnimTimer);
+    _busAnimTimer = null;
+    return;
+  }
+  if (_busPath.length < 2) return;
+  _busSegIdx = 0;
+  _busSegT = 0;
+  clearInterval(_busAnimTimer);
+  _busAnimTimer = setInterval(advanceBus, 35);
+}
+
+function advanceBus() {
+  if (!_busMarker || _busPath.length < 2) return;
+  if (_busSegIdx >= _busPath.length - 1) {
+    _busSegIdx = 0;
+    _busSegT = 0;
+    _busMarker.setLatLng(_busPath[0]);
+    return;
+  }
+  _busSegT += 0.012;
+  if (_busSegT >= 1) {
+    _busSegT = 0;
+    _busSegIdx += 1;
+    if (_busSegIdx >= _busPath.length - 1) {
+      _busMarker.setLatLng(_busPath[_busPath.length - 1]);
+      return;
+    }
+  }
+  const a = _busPath[_busSegIdx];
+  const b = _busPath[_busSegIdx + 1];
+  const lat = a[0] + (b[0] - a[0]) * _busSegT;
+  const lon = a[1] + (b[1] - a[1]) * _busSegT;
+  _busMarker.setLatLng([lat, lon]);
+}
+
+// Recompute map size when modal becomes visible.
+function refreshLeafletSize() {
+  if (_map) setTimeout(() => _map.invalidateSize(), 80);
 }
 
 // ---------- Scanner ----------
