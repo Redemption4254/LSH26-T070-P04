@@ -80,6 +80,26 @@ async function init() {
 }
 
 // ---------- Events ----------
+// Safe binding helper: never throws if the element is missing.
+function bind(id, event, fn) {
+  const el = document.getElementById(id);
+  if (!el) { console.warn('[bind] missing element #' + id); return; }
+  el.addEventListener(event, fn);
+}
+function bindAll(selector, event, fn) {
+  const els = document.querySelectorAll(selector);
+  els.forEach((el) => el.addEventListener(event, fn));
+}
+
+// Global error surfacing: any uncaught error becomes a toast so users can see it.
+function _showErr(msg) {
+  const t = document.getElementById('toast');
+  if (t) { t.textContent = '⚠ ' + msg; t.classList.remove('hidden'); setTimeout(() => t.classList.add('hidden'), 5000); }
+  console.error('[FareSplit]', msg);
+}
+window.addEventListener('error', (e) => { if (e && e.error) _showErr(e.error.message || String(e.error)); });
+window.addEventListener('unhandledrejection', (e) => { _showErr('Promise: ' + ((e.reason && (e.reason.message || String(e.reason))) || 'rejected')); });
+
 // Action sheet that lets the user add stops, add riders, share, demo, reset.
 let _sheetStep = 'route';
 function openMenuSheet(step) {
@@ -288,7 +308,9 @@ function escapeHtml(s) {
 }
 
 function wireEvents() {
-  $('total-fare').addEventListener('input', (e) => {
+  // Every bind is wrapped to never abort the rest of the wiring if one
+  // selector misses. We bind each handler individually.
+  bind('total-fare', 'input', (e) => {
     let v = parseFloat(e.target.value);
     if (!Number.isFinite(v) || v < 0) v = 0;
     if (v > LIMITS.MAX_FARE) {
@@ -298,66 +320,65 @@ function wireEvents() {
     state.totalFare = v;
     scheduleResultsRender();
   });
-  $('add-stop').addEventListener('click', addStop);
-  $('new-stop').addEventListener('keydown', (e) => { if (e.key === 'Enter') { e.preventDefault(); addStop(); } });
-  $('new-stop').addEventListener('input', (e) => { e.target.value = e.target.value.slice(0, LIMITS.MAX_STOP_LEN); });
+  bind('add-stop', 'click', () => { try { addStop(); } catch (e) { _showErr(e.message); } });
+  bind('new-stop', 'keydown', (e) => { if (e.key === 'Enter') { e.preventDefault(); try { addStop(); } catch (e) { _showErr(e.message); } } });
+  bind('new-stop', 'input', (e) => { e.target.value = e.target.value.slice(0, LIMITS.MAX_STOP_LEN); });
 
-  $('add-passenger').addEventListener('click', addPassenger);
-  $('passenger-name').addEventListener('keydown', (e) => { if (e.key === 'Enter') { e.preventDefault(); addPassenger(); } });
-  $('passenger-name').addEventListener('input', (e) => { e.target.value = e.target.value.slice(0, LIMITS.MAX_NAME_LEN); });
+  bind('add-passenger', 'click', () => { try { addPassenger(); } catch (e) { _showErr(e.message); } });
+  bind('passenger-name', 'keydown', (e) => { if (e.key === 'Enter') { e.preventDefault(); try { addPassenger(); } catch (e) { _showErr(e.message); } } });
+  bind('passenger-name', 'input', (e) => { e.target.value = e.target.value.slice(0, LIMITS.MAX_NAME_LEN); });
 
-  $('theme-toggle').addEventListener('click', toggleTheme);
-  $('menu-btn').addEventListener('click', openMenuSheet);
-  $('cam-btn')?.addEventListener('click', openMenuSheet);
+  bind('theme-toggle', 'click', toggleTheme);
+  bind('menu-btn', 'click', () => { try { openMenuSheet(); } catch (e) { _showErr(e.message); } });
+  bind('cam-btn', 'click', () => { try { openMenuSheet(); } catch (e) { _showErr(e.message); } });
 
   // Category tabs open the quick-config sheet for that step
   document.querySelectorAll('.cat-tab').forEach((tab) => {
     tab.addEventListener('click', () => {
-      document.querySelectorAll('.cat-tab').forEach((t) => t.classList.remove('active'));
-      tab.classList.add('active');
-      openMenuSheet(tab.dataset.step);
+      try {
+        document.querySelectorAll('.cat-tab').forEach((t) => t.classList.remove('active'));
+        tab.classList.add('active');
+        openMenuSheet(tab.dataset.step);
+      } catch (e) { _showErr(e.message); }
     });
   });
 
   // Generic "switch view" wiring for any element carrying [data-view].
-  // Covers .view-link (What's-new link), .round-icon[data-view] (back arrows
-  // on results / history / about), and the rail-link / nav-btn / nav-fab
-  // selectors below remain for their side-effects.
+  // Covers .view-link (What's-new link) and .round-icon[data-view] (back
+  // arrows on results / history / about). rail-link / nav-btn / nav-fab are
+  // wired below for any extra side-effects.
   document.querySelectorAll('[data-view]').forEach((el) => {
     if (el.classList.contains('nav-btn') ||
         el.classList.contains('nav-fab') ||
-        el.classList.contains('rail-link')) return; // wired separately
+        el.classList.contains('rail-link')) return;
     el.addEventListener('click', (e) => {
       e.preventDefault();
-      switchView(el.dataset.view);
+      try { switchView(el.dataset.view); } catch (err) { _showErr(err.message); }
     });
   });
 
-  $('share-btn').addEventListener('click', shareTrip);
-  $('qr-btn').addEventListener('click', showQR);
-  $('reset-btn').addEventListener('click', resetTrip);
-  $('demo-btn').addEventListener('click', loadDemoTrip);
-  $('qr-close').addEventListener('click', closeQR);
-  $('qr-modal').addEventListener('click', (e) => { if (e.target.id === 'qr-modal') closeQR(); });
-  $('qr-copy').addEventListener('click', copyLink);
-  $('bk-booknow')?.addEventListener('click', shareTrip);
+  bind('share-btn', 'click', () => { shareTrip(); });
+  bind('qr-btn', 'click', () => { showQR(); });
+  bind('reset-btn', 'click', () => { resetTrip(); });
+  bind('demo-btn', 'click', () => { loadDemoTrip(); });
+  bind('qr-close', 'click', () => { closeQR(); });
+  bind('qr-modal', 'click', (e) => { if (e.target.id === 'qr-modal') closeQR(); });
+  bind('qr-copy', 'click', () => { copyLink(); });
+  bind('bk-booknow', 'click', () => { shareTrip(); });
   document.addEventListener('keydown', (e) => { if (e.key === 'Escape') { closeSheet(); closeQR(); } });
   document.querySelectorAll('.nav-btn, .nav-fab').forEach((b) => {
-    b.addEventListener('click', () => switchView(b.dataset.view));
+    b.addEventListener('click', () => { try { switchView(b.dataset.view); } catch (e) { _showErr(e.message); } });
   });
   document.querySelectorAll('.rail-link').forEach((a) => {
-    a.addEventListener('click', (e) => {
-      e.preventDefault();
-      switchView(a.dataset.view);
-    });
+    a.addEventListener('click', (e) => { e.preventDefault(); try { switchView(a.dataset.view); } catch (err) { _showErr(err.message); } });
   });
   // Summary pane Share button
-  $('sum-share')?.addEventListener('click', shareTrip);
+  bind('sum-share', 'click', () => { shareTrip(); });
 
   // Bell + inactive round-icons → small toasts so they feel alive.
-  $('bell-btn')?.addEventListener('click', () => toast('No new notifications'));
+  bind('bell-btn', 'click', () => toast('No new notifications'));
   // Triple-chevron "next" pill jumps to the next step sheet.
-  $('ghost-next')?.addEventListener('click', () => {
+  bind('ghost-next', 'click', () => {
     const order = ['route', 'passengers', 'results'];
     const i = order.indexOf(_sheetStep);
     openMenuSheet(order[(i + 1) % order.length]);
@@ -386,9 +407,9 @@ function wireEvents() {
   });
 
   // Scroll-reveal observer
-  setupReveals();
+  try { setupReveals(); } catch (e) { _showErr('reveal: ' + e.message); }
   // First-paint summary
-  updateSummary();
+  try { updateSummary(); } catch (e) { _showErr('summary: ' + e.message); }
 }
 
 // ---------- Theme ----------
