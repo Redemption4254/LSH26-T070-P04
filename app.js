@@ -100,6 +100,28 @@ function wireEvents() {
   $('passenger-name').addEventListener('input', (e) => { e.target.value = e.target.value.slice(0, LIMITS.MAX_NAME_LEN); });
 
   $('theme-toggle').addEventListener('click', toggleTheme);
+  $('menu-btn').addEventListener('click', () => switchView('about'));
+
+  // Pill tabs scroll to the matching card and highlight it briefly
+  document.querySelectorAll('.pill-tab').forEach((tab) => {
+    tab.addEventListener('click', () => {
+      document.querySelectorAll('.pill-tab').forEach((t) => t.classList.remove('active'));
+      tab.classList.add('active');
+      const step = tab.dataset.step;
+      const idMap = { route: 'card-route', passengers: 'card-passengers', results: 'card-results' };
+      const target = idMap[step] ? document.getElementById(idMap[step]) : null;
+      if (target) {
+        target.scrollIntoView({ behavior: 'smooth', block: 'start' });
+        target.style.transition = 'box-shadow .2s, border-color .2s';
+        target.style.boxShadow = '0 0 0 3px rgba(255,46,46,.35)';
+        target.style.borderColor = 'var(--primary)';
+        setTimeout(() => {
+          target.style.boxShadow = '';
+          target.style.borderColor = '';
+        }, 900);
+      }
+    });
+  });
   $('share-btn').addEventListener('click', shareTrip);
   $('qr-btn').addEventListener('click', showQR);
   $('reset-btn').addEventListener('click', resetTrip);
@@ -108,7 +130,7 @@ function wireEvents() {
   $('qr-modal').addEventListener('click', (e) => { if (e.target.id === 'qr-modal') closeQR(); });
   $('qr-copy').addEventListener('click', copyLink);
   document.addEventListener('keydown', (e) => { if (e.key === 'Escape') closeQR(); });
-  document.querySelectorAll('.nav-btn').forEach((b) => {
+  document.querySelectorAll('.nav-btn, .nav-fab').forEach((b) => {
     b.addEventListener('click', () => switchView(b.dataset.view));
   });
 }
@@ -117,32 +139,42 @@ function wireEvents() {
 function loadTheme() {
   let theme = localStorage.getItem('faresplit-theme');
   if (!theme) {
-    theme = window.matchMedia?.('(prefers-color-scheme: dark)').matches ? 'dark' : 'light';
+    theme = 'dark'; // app is dark-first by design
   }
-  if (theme === 'dark') {
-    document.body.classList.add('dark');
-    $('theme-toggle').textContent = '☀️';
-    $('theme-toggle').setAttribute('aria-label', 'Switch to light mode');
+  applyTheme(theme);
+}
+function applyTheme(theme) {
+  const dark = theme === 'dark';
+  document.body.classList.toggle('dark', dark);
+  document.body.classList.toggle('light', !dark);
+  const btn = $('theme-toggle');
+  if (btn) {
+    btn.textContent = dark ? '☀️' : '🌙';
+    btn.setAttribute('aria-label', dark ? 'Switch to light mode' : 'Switch to dark mode');
   }
 }
 function toggleTheme() {
-  const dark = document.body.classList.toggle('dark');
-  localStorage.setItem('faresplit-theme', dark ? 'dark' : 'light');
-  $('theme-toggle').textContent = dark ? '☀️' : '🌙';
-  $('theme-toggle').setAttribute('aria-label', dark ? 'Switch to light mode' : 'Switch to dark mode');
+  const next = document.body.classList.contains('dark') ? 'light' : 'dark';
+  localStorage.setItem('faresplit-theme', next);
+  applyTheme(next);
 }
 
 // ---------- Views ----------
 function switchView(name) {
+  if (!name) return;
   state.view = name;
   document.querySelectorAll('.view').forEach((v) => v.classList.remove('active'));
-  document.querySelectorAll('.nav-btn').forEach((b) => {
+  document.querySelectorAll('.nav-btn, .nav-fab').forEach((b) => {
     const active = b.dataset.view === name;
     b.classList.toggle('active', active);
     b.setAttribute('aria-selected', String(active));
   });
   document.getElementById('view-' + name)?.classList.add('active');
   if (name === 'history') renderHistory();
+  // Scroll the selected step card into view if switching to "split"
+  if (name === 'split') {
+    window.scrollTo({ top: 0, behavior: 'smooth' });
+  }
 }
 
 // ---------- Backend health ----------
@@ -244,25 +276,33 @@ function renderPassengers() {
   if (state.passengers.length === 0) {
     const li = document.createElement('li');
     li.className = 'empty';
-    li.textContent = 'No passengers yet — add one above, or tap "Load demo trip" below.';
+    li.textContent = 'No passengers yet — add one above, or tap Demo below.';
     list.appendChild(li);
     return;
   }
   state.passengers.forEach((p) => {
     const li = document.createElement('li');
-    const left = document.createElement('div');
-    const strong = document.createElement('strong');
-    strong.textContent = p.name;
-    const info = document.createElement('span');
-    info.className = 'route-info';
-    info.textContent = `  (${p.inStop} → ${p.outStop})`;
-    left.appendChild(strong);
-    left.appendChild(info);
+    const av = document.createElement('div');
+    av.className = 'avatar-sm';
+    av.textContent = (p.name || '?').charAt(0).toUpperCase();
+    const info = document.createElement('div');
+    info.className = 'pinfo';
+    const nm = document.createElement('div');
+    nm.className = 'pname';
+    nm.textContent = p.name;
+    const rt = document.createElement('div');
+    rt.className = 'proute';
+    rt.textContent = `${p.inStop} → ${p.outStop}`;
+    info.appendChild(nm);
+    info.appendChild(rt);
     const btn = document.createElement('button');
-    btn.className = 'btn danger small';
-    btn.textContent = 'Remove';
+    btn.className = 'premove';
+    btn.setAttribute('aria-label', `Remove ${p.name}`);
+    btn.title = 'Remove';
+    btn.textContent = '✕';
     btn.addEventListener('click', () => removePassenger(p.id));
-    li.appendChild(left);
+    li.appendChild(av);
+    li.appendChild(info);
     li.appendChild(btn);
     list.appendChild(li);
   });
@@ -396,7 +436,7 @@ function renderResults() {
 
   const thead = document.createElement('thead');
   const trh = document.createElement('tr');
-  ['Passenger', 'Board', 'Alight', 'Segments', 'Share'].forEach((t) => {
+  ['Passenger', 'Route', 'Share'].forEach((t) => {
     const th = document.createElement('th');
     th.scope = 'col';
     th.textContent = t;
@@ -412,10 +452,8 @@ function renderResults() {
     const tr = document.createElement('tr');
     if (idx === absorber) tr.classList.add('absorber');
     const vals = [
-      p.name + (idx === absorber ? ' (absorbed remainder ⭐)' : ''),
-      p.inStop,
-      p.outStop,
-      names.length ? names.join(', ') : '—',
+      p.name + (idx === absorber ? ' ⭐' : ''),
+      names.length ? `${segs.length} segment${segs.length === 1 ? '' : 's'}` : '—',
       fmtMoney(shares[idx])
     ];
     vals.forEach((v, i) => {
@@ -584,7 +622,7 @@ function showQR() {
     // White background
     ctx.fillStyle = '#ffffff';
     ctx.fillRect(0, 0, size, size);
-    ctx.fillStyle = '#1e3c72';
+    ctx.fillStyle = '#0a0a0c';
     const tile = size / (moduleCount + 4); // padding
     const offset = tile * 2;
     for (let r = 0; r < moduleCount; r++) {
@@ -648,8 +686,9 @@ function renderHistory() {
   state.history.forEach((h) => {
     const li = document.createElement('li');
     const left = document.createElement('div');
-    const title = document.createElement('strong');
-    title.textContent = `Trip · ${fmtMoney(h.trip.totalFare)} · ${h.trip.passengers.length} pax`;
+    const title = document.createElement('div');
+    title.className = 'htitle';
+    title.textContent = `${h.trip.passengers.length} pax · ${h.trip.stops.length} stops`;
     const meta = document.createElement('div');
     meta.className = 'meta';
     meta.textContent = `${new Date(h.ts).toLocaleString()}${h.trip._local ? ' · local' : ''}`;
@@ -659,6 +698,10 @@ function renderHistory() {
     const wrap = document.createElement('div');
     wrap.style.display = 'flex';
     wrap.style.gap = '0.4rem';
+    wrap.style.alignItems = 'center';
+    const fare = document.createElement('span');
+    fare.className = 'hfare';
+    fare.textContent = fmtMoney(h.trip.totalFare);
     const openBtn = document.createElement('button');
     openBtn.className = 'btn small';
     openBtn.textContent = 'Open';
@@ -668,14 +711,16 @@ function renderHistory() {
       toast('Trip loaded');
     });
     const delBtn = document.createElement('button');
-    delBtn.className = 'btn small ghost';
-    delBtn.textContent = '✕';
+    delBtn.className = 'premove';
     delBtn.title = 'Delete';
+    delBtn.setAttribute('aria-label', 'Delete trip');
+    delBtn.textContent = '✕';
     delBtn.addEventListener('click', () => {
       state.history = state.history.filter((x) => x.id !== h.id);
       localStorage.setItem('faresplit-history', JSON.stringify(state.history));
       renderHistory();
     });
+    wrap.appendChild(fare);
     wrap.appendChild(openBtn);
     wrap.appendChild(delBtn);
 
@@ -691,7 +736,6 @@ function renderHistory() {
   clearBtn.className = 'btn ghost block';
   clearBtn.textContent = 'Clear history';
   clearBtn.addEventListener('click', clearHistory);
-  clearWrap.appendChild(clearBtn);
   list.parentElement.appendChild(clearWrap);
 }
 

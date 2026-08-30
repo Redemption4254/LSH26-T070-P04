@@ -3,132 +3,170 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
-  <meta name="theme-color" content="#1e3c72" />
-  <title>Bus Route Fare Splitter</title>
+  <meta name="theme-color" content="#000000" />
+  <title>FareSplit</title>
   <link rel="manifest" href="manifest.json" />
   <link rel="stylesheet" href="styles.css" />
   <link rel="icon" href="data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'><text y='52' font-size='52'>%F0%9F%9A%8D</text></svg>" />
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet" />
 </head>
 <body>
-  <header class="topbar">
-    <div class="brand">
-      <span class="logo">&#128652;</span>
-      <div>
-        <h1>FareSplit</h1>
-        <p class="subtitle">Split a bus fare, fairly.</p>
-      </div>
-    </div>
-    <div class="topbar-actions">
-      <button id="theme-toggle" class="icon-btn" title="Toggle dark mode" aria-label="Toggle dark mode">&#127769;</button>
-      <a href="source.html" class="icon-btn" title="Source code" aria-label="Source code">{'</>'}</a>
+  <!-- Header (Explore-style) -->
+  <header class="app-header">
+    <button class="round-btn" id="menu-btn" aria-label="Menu">&#9776;</button>
+    <div class="header-right">
+      <button class="round-btn" id="theme-toggle" aria-label="Toggle theme">&#9728;</button>
+      <div class="avatar" aria-hidden="true">FS</div>
     </div>
   </header>
 
   <!-- View: Split -->
   <main id="view-split" class="view active">
-    <div id="api-status" class="status-pill">Connecting&hellip;</div>
+    <section class="hero">
+      <p class="eyebrow">Explore</p>
+      <h1 class="hero-title">Split the fare, <span>not the friendship.</span></h1>
+    </section>
 
-    <section class="card">
-      <div class="card-head">
-        <h2>1 &middot; Route</h2>
-        <span class="step-hint">Stops + total fare</span>
+    <!-- Location / Search style pill -->
+    <section class="search-pill" id="api-status-wrap">
+      <span class="dot"></span>
+      <span class="status-text" id="api-status">Connecting&hellip;</span>
+    </section>
+
+    <!-- Category tabs (steps) -->
+    <nav class="pill-tabs" aria-label="Steps">
+      <button class="pill-tab active" data-step="route"><span class="tab-ico">&#128652;</span>Route</button>
+      <button class="pill-tab" data-step="passengers"><span class="tab-ico">&#128101;</span>Riders</button>
+      <button class="pill-tab" data-step="results"><span class="tab-ico">&#128200;</span>Split</button>
+    </nav>
+
+    <!-- 1 · Route card -->
+    <section class="card route-card" id="card-route">
+      <div class="card-meta">
+        <span class="badge">Step 1</span>
+        <span class="badge subtle">Route</span>
       </div>
-      <div class="form-row">
-        <label for="total-fare">Total fare</label>
-        <input type="number" id="total-fare" min="0" step="0.01" value="120" inputmode="decimal" />
+      <div class="route-headline">
+        <h2>Your stops</h2>
+        <span class="route-fare-label">Total fare</span>
       </div>
-      <div class="stops-area">
-        <h3>Stops (in order)</h3>
-        <ol id="stops-list"></ol>
-        <div class="form-row inline">
-          <input type="text" id="new-stop" placeholder="Add a stop&hellip;" />
-          <button id="add-stop" class="btn">+ Add</button>
-        </div>
+      <div class="fare-input-wrap">
+        <span class="currency">&#8377;</span>
+        <input type="number" id="total-fare" min="0" step="0.01" value="120" inputmode="decimal" aria-label="Total fare" />
+      </div>
+
+      <ol id="stops-list" class="stops-list"></ol>
+
+      <div class="add-stop-row">
+        <input type="text" id="new-stop" placeholder="Add a stop&hellip;" maxlength="60" />
+        <button id="add-stop" class="round-btn dark" aria-label="Add stop">+</button>
       </div>
     </section>
 
-    <section class="card">
-      <div class="card-head">
-        <h2>2 &middot; Passengers</h2>
-        <span class="step-hint">Add riders</span>
+    <!-- 2 · Passengers card -->
+    <section class="card" id="card-passengers">
+      <div class="card-meta">
+        <span class="badge">Step 2</span>
+        <span class="badge subtle">Riders</span>
       </div>
-      <div class="form-row inline">
-        <input type="text" id="passenger-name" placeholder="Name" />
-      </div>
-      <div class="form-row inline pair">
-        <select id="passenger-in" aria-label="Boarding stop"></select>
+      <h2 class="card-title">Who's riding?</h2>
+
+      <input type="text" id="passenger-name" class="text-input" placeholder="Passenger name" maxlength="40" />
+
+      <div class="pair-row">
+        <select id="passenger-in" class="text-input" aria-label="Boarding stop"></select>
         <span class="arrow">&rarr;</span>
-        <select id="passenger-out" aria-label="Alighting stop"></select>
+        <select id="passenger-out" class="text-input" aria-label="Alighting stop"></select>
       </div>
-      <button id="add-passenger" class="btn primary block">+ Add Passenger</button>
+
+      <button id="add-passenger" class="btn primary block">
+        <span class="plus">+</span> Add Passenger
+      </button>
+
       <ul id="passenger-list" class="passenger-list"></ul>
     </section>
 
-    <section class="card">
-      <div class="card-head">
-        <h2>3 &middot; Split</h2>
-        <span class="step-hint">Live total</span>
+    <!-- 3 · Results card -->
+    <section class="card dark-card" id="card-results">
+      <div class="card-meta">
+        <span class="badge">Step 3</span>
+        <span class="badge subtle">Split</span>
       </div>
+      <h2 class="card-title">Per-segment breakdown</h2>
       <div id="results"></div>
     </section>
 
-    <section class="card actions-card">
-      <button id="share-btn" class="btn primary block">&#128279; Save &amp; Share Link</button>
-      <button id="qr-btn" class="btn block">&#128241; Show QR Code</button>
-      <button id="demo-btn" class="btn block">&#10024; Load Demo Trip</button>
-      <button id="reset-btn" class="btn ghost block">&#8634; Reset Trip</button>
-    </section>
-  </main>
-
-  <main id="view-history" class="view">
-    <section class="card">
-      <div class="card-head">
-        <h2>Saved Trips</h2>
-        <span class="step-hint">This device</span>
+    <!-- Actions -->
+    <section class="actions">
+      <button id="share-btn" class="btn primary big block">&#128279; Save &amp; Share Link</button>
+      <div class="action-grid">
+        <button id="qr-btn" class="btn ghost block">&#128241; Show QR</button>
+        <button id="demo-btn" class="btn ghost block">&#10024; Demo</button>
       </div>
-      <ul id="history-list" class="history-list"></ul>
+      <button id="reset-btn" class="btn link block">&#8634; Reset trip</button>
     </section>
+
+    <p class="footer-note">Made for hackathons &middot; works offline &middot; open source</p>
   </main>
 
+  <!-- View: History -->
+  <main id="view-history" class="view">
+    <section class="hero">
+      <p class="eyebrow">My Trips</p>
+      <h1 class="hero-title">Saved <span>locally.</span></h1>
+    </section>
+    <ul id="history-list" class="history-list"></ul>
+    <p class="footer-note">Trips are saved on this device only.</p>
+  </main>
+
+  <!-- View: About -->
   <main id="view-about" class="view">
+    <section class="hero">
+      <p class="eyebrow">About</p>
+      <h1 class="hero-title">Built for <span>exact cents.</span></h1>
+    </section>
     <section class="card">
-      <h2>About FareSplit</h2>
-      <p>Splits a bus fare based on the segments each passenger actually rode, with exact rounding so shares add up to the total &mdash; every cent accounted for.</p>
+      <p class="lede">Splits a bus fare based on the segments each passenger actually rode &mdash; with exact rounding so shares add up to the total, every cent accounted for.</p>
       <ul class="features">
-        <li>&#9989; Ordered stops, custom route</li>
-        <li>&#9989; Per-passenger board &amp; alight</li>
-        <li>&#9989; Segment-by-segment cost</li>
-        <li>&#9989; Remainder absorption (no fractional &#8377;)</li>
-        <li>&#9989; Share via link or QR</li>
-        <li>&#9989; Installable PWA &middot; works offline</li>
+        <li><span class="check">&#10003;</span> Ordered stops, custom route</li>
+        <li><span class="check">&#10003;</span> Per-passenger board &amp; alight</li>
+        <li><span class="check">&#10003;</span> Segment-by-segment cost</li>
+        <li><span class="check">&#10003;</span> Remainder absorption, no fractional &#8377;</li>
+        <li><span class="check">&#10003;</span> Share via link or QR</li>
+        <li><span class="check">&#10003;</span> Installable PWA, works offline</li>
       </ul>
-      <a href="source.html" class="btn block">View Source Code</a>
+      <a href="tests.html" class="btn primary block">&#10004; Run tests</a>
+      <a href="source.html" class="btn ghost block">View source code</a>
     </section>
   </main>
 
+  <!-- Bottom Nav (floating pill) -->
   <nav class="bottom-nav" role="tablist" aria-label="Sections">
     <button class="nav-btn active" data-view="split" role="tab" aria-selected="true">
-      <span class="nav-ico">&#129518;</span><span class="nav-label">Split</span>
+      <span class="nav-ico">&#129518;</span>
+    </button>
+    <button class="nav-fab" data-view="results" role="tab" aria-selected="false" aria-label="Split now">
+      <span class="nav-ico">&#8377;</span>
     </button>
     <button class="nav-btn" data-view="history" role="tab" aria-selected="false">
-      <span class="nav-ico">&#128453;</span><span class="nav-label">History</span>
-    </button>
-    <button class="nav-btn" data-view="about" role="tab" aria-selected="false">
-      <span class="nav-ico">&#8505;&#65039;</span><span class="nav-label">About</span>
+      <span class="nav-ico">&#128453;</span>
     </button>
   </nav>
 
-  <div id="qr-modal" class="modal hidden" role="dialog" aria-modal="true">
+  <!-- QR Modal -->
+  <div id="qr-modal" class="modal hidden" role="dialog" aria-modal="true" aria-labelledby="qr-title">
     <div class="modal-card">
-      <button class="modal-close" id="qr-close" aria-label="Close">&#10005;</button>
-      <h3>Scan to open this trip</h3>
+      <button class="modal-close" id="qr-close" aria-label="Close">&times;</button>
+      <h3 id="qr-title">Scan to open this trip</h3>
       <div id="qr-canvas"></div>
       <p id="qr-link" class="qr-link"></p>
-      <button class="btn block" id="qr-copy">Copy link</button>
+      <button class="btn primary block" id="qr-copy">Copy link</button>
     </div>
   </div>
 
-  <div id="toast" class="toast hidden"></div>
+  <div id="toast" class="toast hidden" role="status" aria-live="polite"></div>
 
   <script src="https://cdn.jsdelivr.net/npm/qrcode-generator@1.4.4/qrcode.min.js"></script>
   <script src="app.js"></script>
