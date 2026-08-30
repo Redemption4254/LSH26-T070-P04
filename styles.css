@@ -29,6 +29,8 @@ input,select{width:100%;padding:.7rem .8rem;border:1px solid var(--border);borde
 input:focus,select:focus{outline:2px solid var(--primary);outline-offset:1px}
 .btn{background:var(--card);color:var(--text);border:1px solid var(--border);padding:.65rem 1rem;border-radius:8px;font-weight:600;cursor:pointer;font-size:.95rem;min-height:44px;text-decoration:none;display:inline-flex;align-items:center;justify-content:center;gap:.4rem;transition:transform .05s ease}
 .btn:active{transform:scale(.98)}
+.btn:disabled{opacity:.55;cursor:not-allowed;transform:none}
+.btn#demo-btn{background:linear-gradient(135deg,#f5a623,#e0891a);color:#fff;border:none}
 .btn.primary{background:linear-gradient(135deg,var(--primary),var(--primary-2));color:#fff;border:none}
 .btn.ghost{background:transparent;color:var(--muted);border-color:var(--border)}
 .btn.danger{background:var(--danger);color:#fff;border:none}
@@ -63,6 +65,11 @@ input:focus,select:focus{outline:2px solid var(--primary);outline-offset:1px}
 .nav-label{font-size:.75rem;font-weight:600}
 .modal{position:fixed;inset:0;background:rgba(0,0,0,.55);display:flex;align-items:center;justify-content:center;z-index:100;padding:1rem}
 .modal.hidden{display:none}
+.modal-card{animation:pop .15s ease-out}
+@keyframes pop{from{transform:scale(.96);opacity:0}to{transform:scale(1);opacity:1}}
+@keyframes fadeIn{from{opacity:0;transform:translateY(4px)}to{opacity:1;transform:none}}
+.view.active{animation:fadeIn .18s ease-out}
+.results-table tbody tr{transition:background .15s ease}
 .modal-card{background:var(--card);padding:1.25rem;border-radius:12px;max-width:360px;width:100%;text-align:center;position:relative;box-shadow:0 8px 30px rgba(0,0,0,.25)}
 .modal-card h3{margin-top:0;color:var(--primary)}
 .modal-close{position:absolute;top:.5rem;right:.6rem;background:transparent;border:none;font-size:1.3rem;cursor:pointer;color:var(--muted)}

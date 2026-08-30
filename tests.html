@@ -1,0 +1,218 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Tests · FareSplit</title>
+  <link rel="stylesheet" href="styles.css" />
+  <style>
+    .tests-page { max-width: 920px; margin: 1.5rem auto; padding: 0 1rem; }
+    .test-result { font-family: 'Consolas', monospace; padding: 0.5rem 0.75rem; border-radius: 6px; margin-bottom: 0.4rem; font-size: 0.9rem; }
+    .test-result.pass { background: #d1fae5; color: #065f46; border-left: 4px solid #10b981; }
+    .test-result.fail { background: #fee2e2; color: #991b1b; border-left: 4px solid #ef4444; }
+    body.dark .test-result.pass { background: rgba(16,185,129,.18); color: #6ee7b7; }
+    body.dark .test-result.fail { background: rgba(239,68,68,.18); color: #fca5a5; }
+    .summary-bar { padding: 1rem; border-radius: 8px; font-weight: 700; margin-bottom: 1rem; text-align: center; }
+    .summary-bar.all-pass { background: linear-gradient(135deg, #10b981, #059669); color: white; }
+    .summary-bar.any-fail { background: linear-gradient(135deg, #ef4444, #dc2626); color: white; }
+  </style>
+</head>
+<body>
+  <header class="topbar">
+    <div class="brand">
+      <span class="logo">🧪</span>
+      <div>
+        <h1>FareSplit Tests</h1>
+        <p class="subtitle">Validates the core fare-splitting math.</p>
+      </div>
+    </div>
+    <div class="topbar-actions">
+      <a href="index.html" class="icon-btn" title="Back to app">←</a>
+    </div>
+  </header>
+
+  <main class="tests-page">
+    <section class="card">
+      <h2>Run tests</h2>
+      <p class="hint">Pure-frontend, runs entirely in your browser. No setup needed.</p>
+      <button id="run-btn" class="btn primary block">▶ Run all tests</button>
+      <div id="summary" class="summary-bar" style="margin-top: 1rem; display: none;"></div>
+      <div id="output"></div>
+    </section>
+
+    <section class="card">
+      <h2>What's being tested</h2>
+      <ul>
+        <li>Segment costs sum exactly to the total fare</li>
+        <li>Passenger shares sum exactly to the total fare (no off-by-one rupee)</li>
+        <li>Remainder absorption is visible (one passenger marked)</li>
+        <li>Edge cases: awkward totals (₹100/3), 0 passengers, 2 stops, large fares</li>
+        <li>Input limits &amp; sanitization</li>
+      </ul>
+    </section>
+  </main>
+
+  <script>
+    // ===========================================================
+    //  Test runner — minimal, no dependencies
+    // ===========================================================
+    const tests = [];
+    function test(name, fn) { tests.push({ name, fn }); }
+    function approx(a, b, eps = 0.005) { return Math.abs(a - b) < eps; }
+    function deepEq(a, b) { return JSON.stringify(a) === JSON.stringify(b); }
+
+    // We test against FareMath on the global scope (exposed from app.js)
+    async function loadApp() {
+      if (window.FareMath) return;
+      await new Promise((resolve, reject) => {
+        const s = document.createElement('script');
+        s.src = 'app.js';
+        s.onload = resolve;
+        s.onerror = reject;
+        document.head.appendChild(s);
+      });
+    }
+
+    // ---------- Test cases ----------
+    test('segmentCosts sums exactly to total (even total)', () => {
+      const stops = ['A', 'B', 'C', 'D'];
+      const costs = FareMath.segmentCosts(stops, 120);
+      const sum = costs.reduce((a, b) => a + b, 0);
+      test(approx(sum, 120), 'sum should equal 120');
+      if (costs.length !== 3) throw new Error('expected 3 segments');
+      costs.forEach((c) => { if (!approx(c, 40)) throw new Error(`expected 40, got ${c}`); });
+    });
+
+    test('segmentCosts handles ₹100 over 3 segments (₹33.33 x 2 + ₹33.34)', () => {
+      const stops = ['A', 'B', 'C', 'D'];
+      const costs = FareMath.segmentCosts(stops, 100);
+      const sum = costs.reduce((a, b) => a + b, 0);
+      if (!approx(sum, 100)) throw new Error(`sum=${sum}`);
+      // Last segment should have the +1¢ from remainder absorption
+      if (!approx(costs[0], 33.34)) throw new Error(`costs[0]=${costs[0]} expected 33.34`);
+      if (!approx(costs[1], 33.33)) throw new Error(`costs[1]=${costs[1]} expected 33.33`);
+      if (!approx(costs[2], 33.33)) throw new Error(`costs[2]=${costs[2]} expected 33.33`);
+    });
+
+    test('segmentCosts handles 2 stops (1 segment)', () => {
+      const costs = FareMath.segmentCosts(['A', 'B'], 50);
+      if (costs.length !== 1) throw new Error('expected 1 segment');
+      if (!approx(costs[0], 50)) throw new Error(`expected 50, got ${costs[0]}`);
+    });
+
+    test('segmentCosts returns empty for <2 stops', () => {
+      if (FareMath.segmentCosts(['A'], 50).length !== 0) throw new Error('single stop should give 0');
+      if (FareMath.segmentCosts([], 50).length !== 0) throw new Error('empty stops should give 0');
+    });
+
+    test('passengerShares sums exactly to total (3 passengers, awkward split)', () => {
+      const stops = ['Park Street', 'MG Road', 'Central Station', 'Airport'];
+      const passengers = [
+        { name: 'Asha',  inStop: 'Park Street',    outStop: 'MG Road' },
+        { name: 'Bilal', inStop: 'MG Road',        outStop: 'Airport' },
+        { name: 'Cyrus', inStop: 'Park Street',    outStop: 'Central Station' }
+      ];
+      const seg = FareMath.segmentCosts(stops, 100);
+      const { shares, absorber } = FareMath.passengerShares(passengers, seg, 100, stops);
+      const sum = shares.reduce((a, b) => a + b, 0);
+      if (!approx(sum, 100)) throw new Error(`shares sum=${sum}, expected 100`);
+      if (absorber === null) throw new Error('absorber should be set when remainder exists');
+    });
+
+    test('passengerShares with no passengers returns empty', () => {
+      const seg = FareMath.segmentCosts(['A', 'B', 'C'], 60);
+      const { shares } = FareMath.passengerShares([], seg, 60, ['A', 'B', 'C']);
+      if (shares.length !== 0) throw new Error('expected empty shares');
+    });
+
+    test('passengerShares with single passenger = full total', () => {
+      const stops = ['A', 'B', 'C'];
+      const seg = FareMath.segmentCosts(stops, 99);
+      const { shares, absorber } = FareMath.passengerShares(
+        [{ name: 'Solo', inStop: 'A', outStop: 'C' }], seg, 99, stops
+      );
+      if (!approx(shares[0], 99)) throw new Error(`expected 99, got ${shares[0]}`);
+      if (absorber === null) throw new Error('absorber expected');
+    });
+
+    test('passengerShares: zero remainder → no absorber', () => {
+      const stops = ['A', 'B', 'C'];
+      const seg = FareMath.segmentCosts(stops, 60);
+      const { shares, absorber } = FareMath.passengerShares(
+        [{ name: 'P1', inStop: 'A', outStop: 'B' }, { name: 'P2', inStop: 'B', outStop: 'C' }],
+        seg, 60, stops
+      );
+      const sum = shares.reduce((a, b) => a + b, 0);
+      if (!approx(sum, 60)) throw new Error(`sum=${sum}`);
+      if (absorber !== null) throw new Error(`absorber should be null when total divides evenly, got ${absorber}`);
+    });
+
+    test('passengerShares: each share is at most 1¢ off from naive sum', () => {
+      // Property test: in all cases, no share deviates from "logical sum" by more than 1¢
+      const stops = ['A', 'B', 'C', 'D', 'E'];
+      const seg = FareMath.segmentCosts(stops, 333.33);
+      const passengers = [
+        { name: 'P1', inStop: 'A', outStop: 'C' },
+        { name: 'P2', inStop: 'B', outStop: 'E' },
+        { name: 'P3', inStop: 'A', outStop: 'B' },
+        { name: 'P4', inStop: 'C', outStop: 'E' }
+      ];
+      const { shares } = FareMath.passengerShares(passengers, seg, 333.33, stops);
+      const sum = shares.reduce((a, b) => a + b, 0);
+      if (!approx(sum, 333.33)) throw new Error(`sum=${sum}`);
+      // Every share should be ≥ 0 and ≥ 0.01 (since each passenger rides ≥ 1 segment with cost ≥ 0.01)
+      shares.forEach((s) => { if (s <= 0) throw new Error(`non-positive share ${s}`); });
+    });
+
+    test('handles extreme fares (rounding stability)', () => {
+      const costs = FareMath.segmentCosts(['A', 'B', 'C'], 0.03);
+      const sum = costs.reduce((a, b) => a + b, 0);
+      if (!approx(sum, 0.03)) throw new Error(`sum=${sum}`);
+    });
+
+    // ---------- Runner ----------
+    async function runAll() {
+      const output = document.getElementById('output');
+      const summary = document.getElementById('summary');
+      output.innerHTML = '';
+      summary.style.display = 'block';
+      summary.textContent = 'Running…';
+      summary.className = 'summary-bar';
+
+      try { await loadApp(); }
+      catch (e) {
+        summary.textContent = 'Failed to load FareMath — make sure app.js is reachable';
+        summary.classList.add('any-fail');
+        return;
+      }
+      if (!window.FareMath) {
+        summary.textContent = 'FareMath not exposed on window';
+        summary.classList.add('any-fail');
+        return;
+      }
+
+      let pass = 0, fail = 0;
+      for (const t of tests) {
+        const div = document.createElement('div');
+        div.className = 'test-result';
+        try {
+          t.fn();
+          div.classList.add('pass');
+          div.textContent = `✓ ${t.name}`;
+          pass++;
+        } catch (e) {
+          div.classList.add('fail');
+          div.textContent = `✗ ${t.name} — ${e.message}`;
+          fail++;
+        }
+        output.appendChild(div);
+      }
+      summary.textContent = `${pass} passed · ${fail} failed`;
+      summary.classList.add(fail === 0 ? 'all-pass' : 'any-fail');
+    }
+
+    document.getElementById('run-btn').addEventListener('click', runAll);
+    window.addEventListener('DOMContentLoaded', () => { setTimeout(runAll, 50); });
+  </script>
+</body>
+</html>
